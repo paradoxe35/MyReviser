@@ -365,3 +365,41 @@ func (p *Processor) InsertText(text string) error {
 	}
 	return p.clipboardManager.ReplaceSelectedText(text)
 }
+
+// CleanTranscript improves dictated text with the selected default provider.
+// It deliberately uses the dedicated dictation prompt rather than an editable
+// action prompt, so unrelated instructions cannot change the cleanup task.
+func (p *Processor) CleanTranscript(text string) (string, error) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return "", nil
+	}
+
+	cfg := p.currentConfig()
+	providerName := cfg.GetCurrentProvider()
+	provider, err := p.providerNamed(providerName)
+	if err != nil {
+		return "", fmt.Errorf("transcript cleanup unavailable: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(),
+		time.Duration(config.DefaultTimeoutSeconds)*time.Second)
+	defer cancel()
+
+	logger.Info("Cleaning dictated transcript",
+		"provider", provider.GetName(),
+		"model", provider.GetModel(),
+		"characters", utf8.RuneCountInString(trimmed),
+	)
+
+	cleaned, err := provider.ReviseText(ctx, trimmed, prompt.Dictate)
+	if err != nil {
+		return "", fmt.Errorf("transcript cleanup failed: %w", err)
+	}
+
+	cleaned = ai.CleanResponse(cleaned)
+	if cleaned == "" {
+		return "", fmt.Errorf("transcript cleanup returned empty text")
+	}
+	return cleaned, nil
+}

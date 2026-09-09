@@ -64,9 +64,6 @@ func (s *Service) Prepare(cfg config.SpeechConfig) error {
 	}
 
 	s.applyDevice(speech, cfg)
-	if cfg.WarmMicrophone {
-		speech.Warm()
-	}
 	return nil
 }
 

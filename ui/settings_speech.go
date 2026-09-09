@@ -179,9 +179,6 @@ func (w *MainWindow) buildSpeechOptions() {
 	w.speechKeepLoaded = widget.NewCheck("Keep the model in memory", nil)
 	w.speechKeepLoaded.SetChecked(speech.KeepModelLoaded)
 
-	w.speechWarmMic = widget.NewCheck("Open the microphone at startup", nil)
-	w.speechWarmMic.SetChecked(speech.WarmMicrophone)
-
 	w.speechCleanUp = widget.NewCheck("Tidy the transcript with AI", nil)
 	w.speechCleanUp.SetChecked(speech.CleanUp)
 }
@@ -194,7 +191,6 @@ func (w *MainWindow) showSpeechOptions() {
 		w.microphone,
 		widget.NewSeparator(),
 		w.speechKeepLoaded,
-		w.speechWarmMic,
 		w.speechCleanUp,
 	)
 
@@ -220,7 +216,6 @@ func (w *MainWindow) applySpeechSettings() {
 
 	speech.InputDevice = w.microphone.Device()
 	speech.KeepModelLoaded = w.speechKeepLoaded.Checked
-	speech.WarmMicrophone = w.speechWarmMic.Checked
 	speech.CleanUp = w.speechCleanUp.Checked
 
 	if preset, ok := stt.PresetByName(w.speechRemote.Selected); ok {

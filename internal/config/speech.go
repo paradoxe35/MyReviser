@@ -28,10 +28,7 @@ type SpeechConfig struct {
 	// Off, the first words after a pause wait for a reload.
 	KeepModelLoaded bool `json:"keep_model_loaded"`
 
-	// Opens the capture device at startup so the first recording is instant.
-	WarmMicrophone bool `json:"warm_microphone"`
-
-	// Routes the transcript through the dictate prompt before typing.
+	// Routes the transcript through the selected AI provider before typing.
 	CleanUp bool `json:"clean_up,omitempty"`
 }
 
@@ -39,7 +36,6 @@ func defaultSpeech() SpeechConfig {
 	return SpeechConfig{
 		Engine:          SpeechLocal,
 		KeepModelLoaded: true,
-		WarmMicrophone:  true,
 	}
 }
 

@@ -56,7 +56,6 @@ type MainWindow struct {
 	speechStoreRef    *stt.Store
 	speechEngine      *widget.Select
 	speechKeepLoaded  *widget.Check
-	speechWarmMic     *widget.Check
 	speechCleanUp     *widget.Check
 	microphone        *MicrophonePicker
 	speechRemote      *widget.Select

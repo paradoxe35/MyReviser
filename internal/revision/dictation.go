@@ -89,6 +89,13 @@ func (d *Dictation) stop() {
 		if strings.TrimSpace(text) == "" {
 			return
 		}
+		if d.config().Speech.CleanUp {
+			text, err = d.processor.CleanTranscript(text)
+			if err != nil {
+				d.fail(err)
+				return
+			}
+		}
 		if err := d.processor.InsertText(text); err != nil {
 			d.fail(err)
 		}
