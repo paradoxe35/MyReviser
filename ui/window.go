@@ -106,7 +106,7 @@ func NewMainWindow(app fyne.App, cfg *config.Config, hotkeyManager *input.FFIHot
 	mw.applyTheme(themeName)
 
 	// Create and set content containers
-	mw.mainContent = mw.chrome(mw.createContent())
+	mw.mainContent = mw.createContent()
 	mw.permissionContainer = mw.permissionPrompt.canvasObject()
 	mw.rootContainer = container.NewStack(mw.mainContent, mw.permissionContainer)
 	window.SetContent(mw.rootContainer)

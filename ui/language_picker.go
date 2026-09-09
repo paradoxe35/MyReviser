@@ -7,11 +7,9 @@ import (
 	"github.com/paradoxe35/encre/internal/language"
 )
 
-const languageSuggestionLimit = 12
-
 // LanguagePicker is a text entry that filters the language registry as you
 // type. Fyne has no searchable Select, and a flat list of 78 entries in a
-// dropdown is unusable.
+// dropdown is still searchable through the entry field.
 type LanguagePicker struct {
 	*widget.SelectEntry
 	code          string
@@ -93,10 +91,6 @@ func labelFor(l language.Language) string {
 }
 
 func labelsFor(languages []language.Language) []string {
-	if len(languages) > languageSuggestionLimit {
-		languages = languages[:languageSuggestionLimit]
-	}
-
 	labels := make([]string, len(languages))
 	for i, l := range languages {
 		labels[i] = labelFor(l)
