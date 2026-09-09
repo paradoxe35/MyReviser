@@ -41,3 +41,24 @@ func TestLanguagePickerChangesDuplicateSelection(t *testing.T) {
 		t.Fatal("picker kept a language that was excluded")
 	}
 }
+
+func TestLanguagePairCanSwapWithExclusions(t *testing.T) {
+	primary := NewLanguagePicker("fr")
+	secondary := NewLanguagePicker("en")
+	updateExclusions := func() {
+		primary.SetExcludedCode(secondary.Code())
+		secondary.SetExcludedCode(primary.Code())
+	}
+	updateExclusions()
+
+	first, second := primary.Code(), secondary.Code()
+	primary.SetExcludedCode("")
+	secondary.SetExcludedCode("")
+	primary.SetCode(second)
+	secondary.SetCode(first)
+	updateExclusions()
+
+	if primary.Code() != "en" || secondary.Code() != "fr" {
+		t.Fatalf("swapped pair = %q/%q, want en/fr", primary.Code(), secondary.Code())
+	}
+}

@@ -21,8 +21,13 @@ func (w *MainWindow) translateLanguages() fyne.CanvasObject {
 
 	swap := widget.NewButtonWithIcon("Swap", theme.ViewRefreshIcon(), func() {
 		primary, secondary := w.primaryLanguage.Code(), w.secondaryLanguage.Code()
+		// Clear the cross-exclusions while assigning the pair. Otherwise the
+		// first Select change can reject the second side of the swap.
+		w.primaryLanguage.SetExcludedCode("")
+		w.secondaryLanguage.SetExcludedCode("")
 		w.primaryLanguage.SetCode(secondary)
 		w.secondaryLanguage.SetCode(primary)
+		updateExclusions()
 	})
 	swap.Importance = widget.LowImportance
 
