@@ -30,8 +30,6 @@ pub enum Command {
     /// None means the system default. Takes effect on the next recording, so a
     /// change mid-take cannot truncate what is being said.
     SetDevice(Option<String>),
-    /// Open the stream without recording so a later Start costs nothing.
-    Warm,
     Start,
     Stop(Sender<Vec<f32>>),
     Cancel,
@@ -50,10 +48,6 @@ impl Recorder {
         let (tx, rx) = channel();
         thread::spawn(move || run(rx, levels));
         Self { commands: tx }
-    }
-
-    pub fn warm(&self) {
-        let _ = self.commands.send(Command::Warm);
     }
 
     pub fn set_device(&self, name: Option<String>) {
@@ -120,11 +114,6 @@ fn run(commands: Receiver<Command>, levels: Sender<f32>) {
                     // Drop the open stream so the next warm or start reopens on
                     // the newly chosen device.
                     stream = None;
-                }
-            }
-            Command::Warm => {
-                if stream.is_none() {
-                    stream = StreamGuard::open(levels.clone(), preferred.as_deref()).ok();
                 }
             }
             Command::Start => {

@@ -139,11 +139,6 @@ int encre_stt_load(encre_SttHandle handle, const char *path);
 
 int encre_stt_unload(encre_SttHandle handle);
 
-/**
- * Opens the capture device without recording, so the next start costs nothing.
- */
-int encre_stt_warm(encre_SttHandle handle);
-
 int encre_stt_start(encre_SttHandle handle);
 
 /**

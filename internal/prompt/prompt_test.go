@@ -5,6 +5,24 @@ import (
 	"testing"
 )
 
+func TestDictatePromptIsDedicatedCleanupInstruction(t *testing.T) {
+	if Dictate == Revise || Dictate == Translate {
+		t.Fatal("dictation cleanup must not reuse another action prompt")
+	}
+	if !containsAll(Dictate, "punctuation", "filler words", "Reply with the cleaned text only") {
+		t.Fatal("dictation prompt is missing cleanup instructions")
+	}
+}
+
+func containsAll(text string, parts ...string) bool {
+	for _, part := range parts {
+		if !strings.Contains(text, part) {
+			return false
+		}
+	}
+	return true
+}
+
 func TestRenderTranslateSubstitutesBothLanguages(t *testing.T) {
 	got := RenderTranslate(Translate, "English", "French")
 

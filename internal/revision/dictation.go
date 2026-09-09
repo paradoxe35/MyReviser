@@ -31,7 +31,8 @@ func NewDictation(processor *Processor, current func() *config.Config, report fu
 
 func (d *Dictation) Service() *stt.Service { return d.service }
 
-// Prepare loads the model and opens the microphone so the first press is fast.
+// Prepare loads the model without opening the microphone. Audio is opened only
+// when the dictate shortcut starts recording.
 func (d *Dictation) Prepare() {
 	cfg := d.config()
 	if !cfg.SpeechReady() {

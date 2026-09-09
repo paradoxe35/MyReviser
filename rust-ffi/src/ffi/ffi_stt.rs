@@ -99,16 +99,6 @@ pub unsafe extern "C" fn encre_stt_unload(handle: SttHandle) -> c_int {
     FFIErrorCode::Success as c_int
 }
 
-/// Opens the capture device without recording, so the next start costs nothing.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn encre_stt_warm(handle: SttHandle) -> c_int {
-    let Some(recogniser) = recogniser(handle) else {
-        return FFIErrorCode::NullPointer as c_int;
-    };
-    recogniser.recorder.warm();
-    FFIErrorCode::Success as c_int
-}
-
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn encre_stt_start(handle: SttHandle) -> c_int {
     let Some(recogniser) = recogniser(handle) else {

@@ -83,13 +83,6 @@ func (s *FFISpeech) Unload() {
 	C.encre_stt_unload(s.handle)
 }
 
-// Warm opens the capture device ahead of time so Start costs nothing.
-func (s *FFISpeech) Warm() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	C.encre_stt_warm(s.handle)
-}
-
 func (s *FFISpeech) Start() error {
 	s.mu.Lock()
 	result := C.encre_stt_start(s.handle)
