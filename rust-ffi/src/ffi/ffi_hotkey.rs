@@ -302,7 +302,7 @@ impl ListenerState {
         // Once, and without naming the key: proof that key events reach us at all.
         if !self.delivery_announced {
             self.delivery_announced = true;
-            tracing::info!("The system is delivering key events to MyReviser");
+            tracing::info!("The system is delivering key events to Scribe");
         }
 
         let bindings = bindings.lock();
@@ -478,7 +478,7 @@ impl SimpleHotkeyManager {
                 if let Err(e) = listen(callback) {
                     *listen_error.lock() = Some(format!(
                         "The system refused the key listener ({:?}). On macOS this is Input \
-                         Monitoring; grant it to MyReviser and restart.",
+                         Monitoring; grant it to Scribe and restart.",
                         e
                     ));
                 }
@@ -500,16 +500,16 @@ impl SimpleHotkeyManager {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_manager_new() -> HotkeyManagerHandle {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_hotkey_manager_new() -> HotkeyManagerHandle {
     init_logging();
 
     let manager = Box::new(SimpleHotkeyManager::new());
     Box::into_raw(manager) as HotkeyManagerHandle
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_clear(handle: HotkeyManagerHandle) -> c_int {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_hotkey_clear(handle: HotkeyManagerHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null hotkey manager handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -518,15 +518,15 @@ pub unsafe extern "C" fn myreviser_hotkey_clear(handle: HotkeyManagerHandle) -> 
     let manager = &mut *(handle as *mut SimpleHotkeyManager);
     manager.clear_bindings();
     FFIErrorCode::Success as c_int
-}
+}}
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_register(
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_hotkey_register(
     handle: HotkeyManagerHandle,
     binding: *const c_char,
     action: *const c_char,
     callback: HotkeyCallback,
-) -> c_int {
+) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null hotkey manager handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -562,10 +562,10 @@ pub unsafe extern "C" fn myreviser_hotkey_register(
             FFIErrorCode::OperationFailed as c_int
         }
     }
-}
+}}
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_start(handle: HotkeyManagerHandle) -> c_int {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_hotkey_start(handle: HotkeyManagerHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null hotkey manager handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -580,10 +580,10 @@ pub unsafe extern "C" fn myreviser_hotkey_start(handle: HotkeyManagerHandle) -> 
             FFIErrorCode::OperationFailed as c_int
         }
     }
-}
+}}
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_stop(handle: HotkeyManagerHandle) -> c_int {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_hotkey_stop(handle: HotkeyManagerHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null hotkey manager handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -598,11 +598,11 @@ pub unsafe extern "C" fn myreviser_hotkey_stop(handle: HotkeyManagerHandle) -> c
             FFIErrorCode::OperationFailed as c_int
         }
     }
-}
+}}
 
-/// Null when the listener is running. The caller frees the string with `myreviser_free_string`.
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_listen_error(handle: HotkeyManagerHandle) -> *mut c_char {
+/// Null when the listener is running. The caller frees the string with `scribe_free_string`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_hotkey_listen_error(handle: HotkeyManagerHandle) -> *mut c_char { unsafe {
     if handle.is_null() {
         return std::ptr::null_mut();
     }
@@ -612,14 +612,14 @@ pub unsafe extern "C" fn myreviser_hotkey_listen_error(handle: HotkeyManagerHand
         Some(message) => string_to_c_str(message),
         None => std::ptr::null_mut(),
     }
-}
+}}
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_manager_free(handle: HotkeyManagerHandle) {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_hotkey_manager_free(handle: HotkeyManagerHandle) { unsafe {
     if !handle.is_null() {
         let _ = Box::from_raw(handle as *mut SimpleHotkeyManager);
     }
-}
+}}
 
 #[cfg(test)]
 mod tests {

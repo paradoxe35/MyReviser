@@ -1,6 +1,6 @@
-# MyReviser
+# Scribe
 
-[![Build and Release](https://github.com/paradoxe35/myreviser/actions/workflows/build.yml/badge.svg)](https://github.com/paradoxe35/myreviser/actions/workflows/build.yml)
+[![Build and Release](https://github.com/paradoxe35/scribe/actions/workflows/build.yml/badge.svg)](https://github.com/paradoxe35/scribe/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A simple tool that fixes your text with AI, anywhere on your computer.
@@ -11,13 +11,13 @@ English isn't my first language. Every time I write an email, a message, or some
 
 I wanted something simpler: press a hotkey, and my text gets fixed. No switching apps, no copy-paste dance. Just write, press a key, done.
 
-That's MyReviser. It sits in your system tray, listens for a hotkey, grabs your text, sends it to an AI, and replaces it with the corrected version. All in a few seconds.
+That's Scribe. It sits in your system tray, listens for a hotkey, grabs your text, sends it to an AI, and replaces it with the corrected version. All in a few seconds.
 
 You can also customize the prompt to do other things - translate, summarize, change tone, whatever you need. But for me, it's mostly about fixing my terrible grammar.
 
 ## Demo
 
-![MyReviser Demo](assets/demo.gif)
+![Scribe Demo](assets/demo.gif)
 
 ## How It Works
 
@@ -30,7 +30,7 @@ That's it.
 
 ## Installation
 
-Download the [latest release](https://github.com/paradoxe35/myreviser/releases/latest) for your system:
+Download the [latest release](https://github.com/paradoxe35/scribe/releases/latest) for your system:
 
 - **Windows**: Run the installer or extract the portable ZIP
 - **macOS**: Open the DMG, drag to Applications. First launch: right-click > Open
@@ -57,7 +57,7 @@ sudo apt install libgl1 libx11-6 libxext6 libxcb1 libxinerama1 libxtst6 libxdo3 
 
 ## Quick Start
 
-1. Launch MyReviser (it appears in your system tray)
+1. Launch Scribe (it appears in your system tray)
 2. Right-click the tray icon > Settings
 3. Add your API key for OpenAI, Claude, or Gemini
 4. Start writing somewhere, select text, press the hotkey
@@ -87,8 +87,8 @@ Config files are created on first run:
 
 | Platform      | Path                                   |
 | ------------- | -------------------------------------- |
-| Linux / macOS | `~/.myreviser/config.json`             |
-| Windows       | `%USERPROFILE%\.myreviser\config.json` |
+| Linux / macOS | `~/.scribe/config.json`             |
+| Windows       | `%USERPROFILE%\.scribe\config.json` |
 
 ## Building From Source
 
@@ -117,7 +117,7 @@ The app uses a Go frontend (Fyne UI) with a Rust backend for system input handli
 **Revisions failing?**
 
 - Check your API key is valid
-- Look at logs in `~/.myreviser/logs/`
+- Look at logs in `~/.scribe/logs/`
 
 ## License
 

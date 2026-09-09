@@ -57,7 +57,7 @@ pub fn take_last_error() -> Option<String> {
 /// # Safety
 /// - `c_str` must be a valid null-terminated C string
 /// - `c_str` must not be null
-pub unsafe fn c_str_to_string(c_str: *const c_char) -> Result<String, &'static str> {
+pub unsafe fn c_str_to_string(c_str: *const c_char) -> Result<String, &'static str> { unsafe {
     if c_str.is_null() {
         return Err("Null pointer provided");
     }
@@ -65,9 +65,9 @@ pub unsafe fn c_str_to_string(c_str: *const c_char) -> Result<String, &'static s
         .to_str()
         .map(|s| s.to_string())
         .map_err(|_| "Invalid UTF-8 in C string")
-}
+}}
 
-/// Helper: Convert Rust String to C string (caller must free with myreviser_free_string)
+/// Helper: Convert Rust String to C string (caller must free with scribe_free_string)
 pub fn string_to_c_str(s: String) -> *mut c_char {
     match CString::new(s) {
         Ok(c_string) => c_string.into_raw(),

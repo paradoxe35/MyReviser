@@ -6,14 +6,14 @@ package input
 #cgo CFLAGS: -I${SRCDIR}/../../rust-ffi
 
 // Linux (includes X11 and Wayland dependencies)
-#cgo linux LDFLAGS: ${SRCDIR}/../../lib/libmyreviser_ffi.a -lpthread -ldl -lm -lxdo -lX11 -lXtst -lxkbcommon
+#cgo linux LDFLAGS: ${SRCDIR}/../../lib/libscribe_ffi.a -lpthread -ldl -lm -lxdo -lX11 -lXtst -lxkbcommon
 
 // macOS
-#cgo darwin LDFLAGS: ${SRCDIR}/../../lib/libmyreviser_ffi.a
+#cgo darwin LDFLAGS: ${SRCDIR}/../../lib/libscribe_ffi.a
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework AppKit -framework ApplicationServices -framework Carbon
 
 // Windows
-#cgo windows LDFLAGS: ${SRCDIR}/../../lib/libmyreviser_ffi.a
+#cgo windows LDFLAGS: ${SRCDIR}/../../lib/libscribe_ffi.a
 #cgo windows LDFLAGS: -lws2_32 -luserenv -lbcrypt -lntdll -static
 
 #include <stdlib.h>
@@ -23,17 +23,17 @@ import "C"
 import (
 	"fmt"
 
-	"github.com/paradoxe35/myreviser/internal/logger"
+	"github.com/paradoxe35/scribe/internal/logger"
 )
 
 // FFIKeySimulator wraps the Rust FFI key simulator
 type FFIKeySimulator struct {
-	handle C.myreviser_SimulatorHandle
+	handle C.scribe_SimulatorHandle
 }
 
 // NewFFIKeySimulator creates a new FFI-based key simulator
 func NewFFIKeySimulator() (*FFIKeySimulator, error) {
-	handle := C.myreviser_simulator_new()
+	handle := C.scribe_simulator_new()
 	if handle == nil {
 		return nil, fmt.Errorf("failed to create key simulator: %s", getLastError())
 	}
@@ -48,7 +48,7 @@ func (s *FFIKeySimulator) SelectAll() error {
 	}
 
 	logger.Debug("FFI: Simulating Select All")
-	result := C.myreviser_simulate_select_all(s.handle)
+	result := C.scribe_simulate_select_all(s.handle)
 	if result != 0 {
 		return fmt.Errorf("failed to simulate select all: %s", getLastError())
 	}
@@ -63,7 +63,7 @@ func (s *FFIKeySimulator) Copy() error {
 	}
 
 	logger.Debug("FFI: Simulating Copy")
-	result := C.myreviser_simulate_copy(s.handle)
+	result := C.scribe_simulate_copy(s.handle)
 	if result != 0 {
 		return fmt.Errorf("failed to simulate copy: %s", getLastError())
 	}
@@ -78,7 +78,7 @@ func (s *FFIKeySimulator) Paste() error {
 	}
 
 	logger.Debug("FFI: Simulating Paste")
-	result := C.myreviser_simulate_paste(s.handle)
+	result := C.scribe_simulate_paste(s.handle)
 	if result != 0 {
 		return fmt.Errorf("failed to simulate paste: %s", getLastError())
 	}
@@ -96,7 +96,7 @@ func (s *FFIKeySimulator) ReleaseModifiers() error {
 		return fmt.Errorf("key simulator not initialized")
 	}
 
-	result := C.myreviser_simulate_release_modifiers(s.handle)
+	result := C.scribe_simulate_release_modifiers(s.handle)
 	if result != 0 {
 		return fmt.Errorf("failed to release modifiers: %s", getLastError())
 	}
@@ -107,7 +107,7 @@ func (s *FFIKeySimulator) ReleaseModifiers() error {
 // Close frees the key simulator resources
 func (s *FFIKeySimulator) Close() {
 	if s.handle != nil {
-		C.myreviser_simulator_free(s.handle)
+		C.scribe_simulator_free(s.handle)
 		s.handle = nil
 	}
 }

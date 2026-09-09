@@ -6,14 +6,14 @@ package input
 #cgo CFLAGS: -I${SRCDIR}/../../rust-ffi
 
 // Linux static linking (includes X11 and Wayland dependencies)
-#cgo linux LDFLAGS: ${SRCDIR}/../../lib/libmyreviser_ffi.a -lpthread -ldl -lm -lxdo -lX11 -lXtst -lxkbcommon
+#cgo linux LDFLAGS: ${SRCDIR}/../../lib/libscribe_ffi.a -lpthread -ldl -lm -lxdo -lX11 -lXtst -lxkbcommon
 
 // macOS linking (partial static, frameworks required)
-#cgo darwin LDFLAGS: ${SRCDIR}/../../lib/libmyreviser_ffi.a
+#cgo darwin LDFLAGS: ${SRCDIR}/../../lib/libscribe_ffi.a
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -framework AppKit -framework Carbon
 
 // Windows static linking
-#cgo windows LDFLAGS: ${SRCDIR}/../../lib/libmyreviser_ffi.a
+#cgo windows LDFLAGS: ${SRCDIR}/../../lib/libscribe_ffi.a
 #cgo windows LDFLAGS: -lws2_32 -luserenv -lbcrypt -lntdll -static
 
 #include <stdlib.h>
@@ -26,7 +26,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/paradoxe35/myreviser/internal/logger"
+	"github.com/paradoxe35/scribe/internal/logger"
 )
 
 // CaptureOutcome tells apart the ways a capture can end, so the user gets an accurate message
@@ -49,12 +49,12 @@ const (
 
 // FFIClipboardManager wraps the Rust FFI clipboard manager
 type FFIClipboardManager struct {
-	handle C.myreviser_ClipboardHandle
+	handle C.scribe_ClipboardHandle
 }
 
 // NewFFIClipboardManager creates a new FFI-based clipboard manager
 func NewFFIClipboardManager() (*FFIClipboardManager, error) {
-	handle := C.myreviser_clipboard_new()
+	handle := C.scribe_clipboard_new()
 	if handle == nil {
 		return nil, fmt.Errorf("failed to create clipboard manager: %s", getLastError())
 	}
@@ -69,11 +69,11 @@ func (c *FFIClipboardManager) text() (string, bool) {
 		return "", false
 	}
 
-	cStr := C.myreviser_clipboard_get_text(c.handle)
+	cStr := C.scribe_clipboard_get_text(c.handle)
 	if cStr == nil {
 		return "", false
 	}
-	defer C.myreviser_free_string(cStr)
+	defer C.scribe_free_string(cStr)
 
 	text := C.GoString(cStr)
 	return text, text != ""
@@ -96,7 +96,7 @@ func (c *FFIClipboardManager) Clear() error {
 		return fmt.Errorf("clipboard manager not initialized")
 	}
 
-	if result := C.myreviser_clipboard_clear(c.handle); result != 0 {
+	if result := C.scribe_clipboard_clear(c.handle); result != 0 {
 		return fmt.Errorf("failed to clear clipboard: %s", getLastError())
 	}
 
@@ -108,7 +108,7 @@ func (c *FFIClipboardManager) HasText() bool {
 	if c.handle == nil {
 		return false
 	}
-	return C.myreviser_clipboard_has_text(c.handle) == 1
+	return C.scribe_clipboard_has_text(c.handle) == 1
 }
 
 // await polls until read answers, or the deadline passes.
@@ -138,7 +138,7 @@ func (c *FFIClipboardManager) SetText(text string) error {
 	cText := C.CString(text)
 	defer C.free(unsafe.Pointer(cText))
 
-	result := C.myreviser_clipboard_set_text(c.handle, cText)
+	result := C.scribe_clipboard_set_text(c.handle, cText)
 	if result != 0 {
 		return fmt.Errorf("failed to set clipboard text: %s", getLastError())
 	}
@@ -152,7 +152,7 @@ func (c *FFIClipboardManager) SaveCurrent() error {
 		return fmt.Errorf("clipboard manager not initialized")
 	}
 
-	result := C.myreviser_clipboard_save(c.handle)
+	result := C.scribe_clipboard_save(c.handle)
 	if result != 0 {
 		return fmt.Errorf("failed to save clipboard: %s", getLastError())
 	}
@@ -166,7 +166,7 @@ func (c *FFIClipboardManager) Restore() error {
 		return fmt.Errorf("clipboard manager not initialized")
 	}
 
-	result := C.myreviser_clipboard_restore(c.handle)
+	result := C.scribe_clipboard_restore(c.handle)
 	if result != 0 {
 		return fmt.Errorf("failed to restore clipboard: %s", getLastError())
 	}
@@ -177,7 +177,7 @@ func (c *FFIClipboardManager) Restore() error {
 // Close frees the clipboard manager resources
 func (c *FFIClipboardManager) Close() {
 	if c.handle != nil {
-		C.myreviser_clipboard_free(c.handle)
+		C.scribe_clipboard_free(c.handle)
 		c.handle = nil
 	}
 }
@@ -303,11 +303,11 @@ func (c *FFIClipboardManager) Abandon() {
 
 // getLastError retrieves the last error message from Rust
 func getLastError() string {
-	cErr := C.myreviser_get_last_error()
+	cErr := C.scribe_get_last_error()
 	if cErr == nil {
 		return "unknown error"
 	}
-	defer C.myreviser_free_string((*C.char)(unsafe.Pointer(cErr)))
+	defer C.scribe_free_string((*C.char)(unsafe.Pointer(cErr)))
 
 	return C.GoString(cErr)
 }

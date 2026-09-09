@@ -10,8 +10,8 @@ import "C"
 
 var onReopen func()
 
-//export myreviserHandleReopen
-func myreviserHandleReopen() {
+//export scribeHandleReopen
+func scribeHandleReopen() {
 	if onReopen != nil {
 		onReopen()
 	}
@@ -22,5 +22,5 @@ func myreviserHandleReopen() {
 // the delegate it already owns.
 func installReopenHandler(show func()) {
 	onReopen = show
-	C.MyReviserInstallReopenHandler()
+	C.ScribeInstallReopenHandler()
 }

@@ -3,8 +3,8 @@ use std::os::raw::c_int;
 use super::ffi_types::*;
 use crate::core::KeySimulator;
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_simulator_new() -> SimulatorHandle {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_simulator_new() -> SimulatorHandle {
     init_logging();
 
     match KeySimulator::new() {
@@ -16,8 +16,8 @@ pub unsafe extern "C" fn myreviser_simulator_new() -> SimulatorHandle {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_simulate_select_all(handle: SimulatorHandle) -> c_int {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_simulate_select_all(handle: SimulatorHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null simulator handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -32,10 +32,10 @@ pub unsafe extern "C" fn myreviser_simulate_select_all(handle: SimulatorHandle) 
             FFIErrorCode::OperationFailed as c_int
         }
     }
-}
+}}
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_simulate_copy(handle: SimulatorHandle) -> c_int {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_simulate_copy(handle: SimulatorHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null simulator handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -50,10 +50,10 @@ pub unsafe extern "C" fn myreviser_simulate_copy(handle: SimulatorHandle) -> c_i
             FFIErrorCode::OperationFailed as c_int
         }
     }
-}
+}}
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_simulate_paste(handle: SimulatorHandle) -> c_int {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_simulate_paste(handle: SimulatorHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null simulator handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -68,11 +68,11 @@ pub unsafe extern "C" fn myreviser_simulate_paste(handle: SimulatorHandle) -> c_
             FFIErrorCode::OperationFailed as c_int
         }
     }
-}
+}}
 
 /// Releases modifiers still held from the triggering hotkey. Call once before any combo.
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_simulate_release_modifiers(handle: SimulatorHandle) -> c_int {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_simulate_release_modifiers(handle: SimulatorHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null simulator handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -87,11 +87,11 @@ pub unsafe extern "C" fn myreviser_simulate_release_modifiers(handle: SimulatorH
             FFIErrorCode::OperationFailed as c_int
         }
     }
-}
+}}
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_simulator_free(handle: SimulatorHandle) {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_simulator_free(handle: SimulatorHandle) { unsafe {
     if !handle.is_null() {
         let _ = Box::from_raw(handle as *mut KeySimulator);
     }
-}
+}}

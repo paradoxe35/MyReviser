@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/paradoxe35/myreviser/internal/logger"
+	"github.com/paradoxe35/scribe/internal/logger"
 )
 
 type autoStart struct{}
@@ -28,7 +28,7 @@ func getAppPath() (string, error) {
 	}
 
 	// Check if running from .app bundle
-	// Path should be: MyReviser.app/Contents/MacOS/MyReviser
+	// Path should be: Scribe.app/Contents/MacOS/Scribe
 	if strings.Contains(executable, ".app/Contents/MacOS/") {
 		// Extract .app path
 		parts := strings.Split(executable, ".app/Contents/MacOS/")

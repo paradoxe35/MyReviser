@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/paradoxe35/myreviser/internal/logger"
+	"github.com/paradoxe35/scribe/internal/logger"
 )
 
 // RestartApplication restarts the application using platform-specific methods

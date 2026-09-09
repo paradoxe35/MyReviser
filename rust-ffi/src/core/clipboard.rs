@@ -92,7 +92,7 @@ mod tests {
     }
 
     /// The bug this rule exists for: borrowing the clipboard while it held an image used to
-    /// destroy the image and leave MyReviser's text in its place.
+    /// destroy the image and leave Scribe's text in its place.
     #[test]
     fn an_unreadable_clipboard_is_cleared_rather_than_left_holding_our_text() {
         let saved = classify(None);

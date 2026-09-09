@@ -6,8 +6,8 @@ use crate::core::ClipboardManager;
 // These built a Tokio runtime per call to await a lock that never yields. `block_on` also panics
 // when the calling thread already drives a runtime, and the JVM calls in from any thread.
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_clipboard_new() -> ClipboardHandle {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_clipboard_new() -> ClipboardHandle {
     init_logging();
 
     match ClipboardManager::new() {
@@ -20,8 +20,8 @@ pub unsafe extern "C" fn myreviser_clipboard_new() -> ClipboardHandle {
 }
 
 /// Null when the clipboard holds no text, including when it holds an image.
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_clipboard_get_text(handle: ClipboardHandle) -> *mut c_char {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_clipboard_get_text(handle: ClipboardHandle) -> *mut c_char { unsafe {
     if handle.is_null() {
         set_last_error("Null clipboard handle provided".to_string());
         return std::ptr::null_mut();
@@ -36,12 +36,12 @@ pub unsafe extern "C" fn myreviser_clipboard_get_text(handle: ClipboardHandle) -
             std::ptr::null_mut()
         }
     }
-}
+}}
 
 /// 1 when the clipboard holds text, 0 when not. Distinguishes "copied a picture" from
 /// "the copy never landed", which look identical through `get_text`.
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_clipboard_has_text(handle: ClipboardHandle) -> c_int {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_clipboard_has_text(handle: ClipboardHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null clipboard handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -53,13 +53,13 @@ pub unsafe extern "C" fn myreviser_clipboard_has_text(handle: ClipboardHandle) -
     } else {
         0
     }
-}
+}}
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_clipboard_set_text(
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_clipboard_set_text(
     handle: ClipboardHandle,
     text: *const c_char,
-) -> c_int {
+) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null clipboard handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -81,11 +81,11 @@ pub unsafe extern "C" fn myreviser_clipboard_set_text(
     };
 
     result_to_error_code(clipboard.set_text(text_str))
-}
+}}
 
 /// Empties the clipboard, so a following simulated copy landing becomes observable.
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_clipboard_clear(handle: ClipboardHandle) -> c_int {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_clipboard_clear(handle: ClipboardHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null clipboard handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -93,10 +93,10 @@ pub unsafe extern "C" fn myreviser_clipboard_clear(handle: ClipboardHandle) -> c
 
     let clipboard = &*(handle as *mut ClipboardManager);
     result_to_error_code(clipboard.clear())
-}
+}}
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_clipboard_save(handle: ClipboardHandle) -> c_int {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_clipboard_save(handle: ClipboardHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null clipboard handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -104,10 +104,10 @@ pub unsafe extern "C" fn myreviser_clipboard_save(handle: ClipboardHandle) -> c_
 
     let clipboard = &*(handle as *mut ClipboardManager);
     result_to_error_code(clipboard.save_clipboard())
-}
+}}
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_clipboard_restore(handle: ClipboardHandle) -> c_int {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_clipboard_restore(handle: ClipboardHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null clipboard handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -115,11 +115,11 @@ pub unsafe extern "C" fn myreviser_clipboard_restore(handle: ClipboardHandle) ->
 
     let clipboard = &*(handle as *mut ClipboardManager);
     result_to_error_code(clipboard.restore_clipboard())
-}
+}}
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_clipboard_free(handle: ClipboardHandle) {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_clipboard_free(handle: ClipboardHandle) { unsafe {
     if !handle.is_null() {
         let _ = Box::from_raw(handle as *mut ClipboardManager);
     }
-}
+}}

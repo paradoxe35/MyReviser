@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"unicode"
 
-	"github.com/paradoxe35/myreviser/internal/utils"
+	locale "github.com/jeandeaual/go-locale"
+	"github.com/paradoxe35/scribe/internal/language"
+	"github.com/paradoxe35/scribe/internal/utils"
 )
 
 const (
@@ -20,15 +21,22 @@ const (
 	BuiltInOpenAI = "openai"
 	BuiltInClaude = "claude"
 	BuiltInGemini = "gemini"
+
+	DefaultCharacterLimit = 1000
+	DefaultTimeoutSeconds = 30
 )
 
 type Config struct {
 	mu         sync.RWMutex
-	AIProvider AIProviderConfig `json:"ai_provider"`
-	Hotkeys    HotkeyConfig     `json:"hotkeys"`
-	Revision   RevisionConfig   `json:"revision"`
-	Appearance AppearanceConfig `json:"appearance"`
-	Meta       MetaConfig       `json:"meta"`
+	AIProvider AIProviderConfig            `json:"ai_provider"`
+	Actions    map[ActionKind]ActionConfig `json:"actions"`
+	Translate  TranslateConfig             `json:"translate"`
+	Appearance AppearanceConfig            `json:"appearance"`
+	Meta       MetaConfig                  `json:"meta"`
+
+	// EnableProviderMentions lets a selection opt into a provider by starting
+	// with "@name". Applies to every AI-backed action.
+	EnableProviderMentions bool `json:"enable_provider_mentions"`
 }
 
 type ProviderSettings struct {
@@ -55,16 +63,9 @@ type AIProviderConfig struct {
 	Providers map[string]ProviderSettings `json:"providers"`
 }
 
-type HotkeyConfig struct {
-	SelectAll string `json:"select_all"`
-	Selection string `json:"selection"`
-}
-
-type RevisionConfig struct {
-	CharacterLimit         int    `json:"character_limit"`
-	SystemPrompt           string `json:"system_prompt"`
-	TimeoutSeconds         int    `json:"timeout_seconds"`
-	EnableProviderMentions bool   `json:"enable_provider_mentions"`
+type TranslateConfig struct {
+	PrimaryLanguage   string `json:"primary_language"`
+	SecondaryLanguage string `json:"secondary_language"`
 }
 
 type AppearanceConfig struct {
@@ -84,7 +85,7 @@ var (
 	listenerMutex sync.RWMutex
 )
 
-const APP_ID = "me.pngwasi.myreviser"
+const APP_ID = "me.pngwasi.scribe"
 
 // ConfigPath returns the path to the configuration file
 func ConfigPath() string {
@@ -114,48 +115,15 @@ func Default() *Config {
 				},
 			},
 		},
-		Hotkeys:    GetPlatformHotkeys(),
-		Revision:   GetDefaultRevision(),
-		Appearance: GetDefaultAppearance(),
-		Meta:       MetaConfig{FirstRun: true},
-	}
-}
-
-// GetPlatformHotkeys returns platform-specific hotkey defaults
-func GetPlatformHotkeys() HotkeyConfig {
-	switch runtime.GOOS {
-	case "darwin":
-		return HotkeyConfig{
-			SelectAll: "ctrl+option+space",
-			Selection: "ctrl+cmd",
-		}
-	case "windows":
-		return HotkeyConfig{
-			SelectAll: "ctrl+alt+space",
-			Selection: "ctrl+win",
-		}
-	default: // Linux
-		return HotkeyConfig{
-			SelectAll: "ctrl+alt+space",
-			Selection: "ctrl+super",
-		}
-	}
-}
-
-// GetDefaultRevision returns default revision settings
-func GetDefaultRevision() RevisionConfig {
-	return RevisionConfig{
-		CharacterLimit: 1000,
-		SystemPrompt: "You are a multilingual text enhancer: fix errors, improve clarity and quality " +
-			"while preserving tone, context, and intent in the original language. " +
-			"Return only the enhanced version without additional text.",
-		TimeoutSeconds:         30,
+		Actions:                DefaultActions(),
+		Translate:              defaultTranslate(),
+		Appearance:             defaultAppearance(),
+		Meta:                   MetaConfig{FirstRun: true},
 		EnableProviderMentions: true,
 	}
 }
 
-// GetDefaultAppearance returns default appearance settings
-func GetDefaultAppearance() AppearanceConfig {
+func defaultAppearance() AppearanceConfig {
 	return AppearanceConfig{
 		Theme:          "auto",
 		StartMinimized: false,
@@ -197,16 +165,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	// Set defaults for any missing fields
-	if cfg.Revision.CharacterLimit == 0 {
-		cfg.Revision.CharacterLimit = 1000
-	}
-	if cfg.Revision.TimeoutSeconds == 0 {
-		cfg.Revision.TimeoutSeconds = 30
-	}
-	if cfg.Revision.SystemPrompt == "" {
-		cfg.Revision.SystemPrompt = GetDefaultRevision().SystemPrompt
-	}
+	cfg.applyDefaults()
 
 	if cfg.AIProvider.Providers != nil {
 		for name, settings := range cfg.AIProvider.Providers {
@@ -253,17 +212,19 @@ func Get() *Config {
 	return currentConfig
 }
 
-// Update updates the configuration with the given function
+// Update mutates the live configuration and persists it. Save takes the same
+// package mutex, so the lock is released before calling it.
 func Update(fn func(*Config)) error {
-	configMutex.Lock()
-	defer configMutex.Unlock()
+	configMutex.RLock()
+	cfg := currentConfig
+	configMutex.RUnlock()
 
-	if currentConfig == nil {
+	if cfg == nil {
 		return fmt.Errorf("configuration not loaded")
 	}
 
-	fn(currentConfig)
-	return currentConfig.Save()
+	fn(cfg)
+	return cfg.Save()
 }
 
 func RegisterListener(listener func(*Config)) {
@@ -279,15 +240,6 @@ func notifyListeners(cfg *Config) {
 	for _, listener := range listeners {
 		go listener(cfg)
 	}
-}
-
-// Reload reloads the configuration from disk and notifies listeners
-func Reload() (*Config, error) {
-	cfg, err := Load()
-	if err == nil {
-		notifyListeners(cfg)
-	}
-	return cfg, err
 }
 
 // GetProviderSettings returns settings for a specific provider
@@ -455,4 +407,51 @@ func (c *Config) IsCustomProvider(name string) bool {
 		return settings.IsCustom
 	}
 	return false
+}
+
+func defaultTranslate() TranslateConfig {
+	primary, secondary := language.Defaults(osLocale())
+	return TranslateConfig{PrimaryLanguage: primary, SecondaryLanguage: secondary}
+}
+
+func osLocale() string {
+	tag, err := locale.GetLocale()
+	if err != nil {
+		return "en"
+	}
+	return strings.ReplaceAll(tag, "_", "-")
+}
+
+// applyDefaults fills anything a hand-edited config left out, so a partial file
+// still starts rather than booting with zero-valued hotkeys and limits.
+func (c *Config) applyDefaults() {
+	if c.Actions == nil {
+		c.Actions = DefaultActions()
+	} else {
+		defaults := DefaultActions()
+		for _, kind := range ActionOrder {
+			action, ok := c.Actions[kind]
+			if !ok {
+				c.Actions[kind] = defaults[kind]
+				continue
+			}
+			if action.CharacterLimit == 0 {
+				action.CharacterLimit = DefaultCharacterLimit
+			}
+			if action.TimeoutSeconds == 0 {
+				action.TimeoutSeconds = DefaultTimeoutSeconds
+			}
+			if action.Hotkey == "" {
+				action.Hotkey = defaults[kind].Hotkey
+			}
+			c.Actions[kind] = action
+		}
+	}
+
+	if c.Translate.PrimaryLanguage == "" || c.Translate.SecondaryLanguage == "" {
+		c.Translate = defaultTranslate()
+	}
+	if c.Appearance.Theme == "" {
+		c.Appearance.Theme = defaultAppearance().Theme
+	}
 }

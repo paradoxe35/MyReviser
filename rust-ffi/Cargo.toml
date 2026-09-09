@@ -1,13 +1,13 @@
 [package]
-name = "myreviser-ffi"
+name = "scribe-ffi"
 version = "0.1.0"
-edition = "2021"
-authors = ["MyReviser Team"]
-description = "Rust FFI library for MyReviser system input functionality"
+edition = "2024"
+authors = ["Scribe Team"]
+description = "Rust FFI library for Scribe system input functionality"
 license = "MIT"
 
 [lib]
-name = "myreviser_ffi"
+name = "scribe_ffi"
 crate-type = ["staticlib"]  # Static library for Go CGO
 
 [dependencies]
@@ -19,7 +19,7 @@ crate-type = ["staticlib"]  # Static library for Go CGO
 # whatever the branch tip is that day, so CI, a release build and a developer's machine can each
 # carry different input code — the one variable you cannot afford when a shortcut fires on one
 # machine and not another.
-rdev = { git = "https://github.com/rustdesk-org/rdev", rev = "a90dbe1172f8832f54c97c62e823c5a34af5fdfe" }
+rdev = { git = "https://github.com/rustdesk-org/rdev", rev = "23e24dd6b35452a495dae0ae6d99395e9755ab0f" }
 arboard = { version = "3.6", features = ["wayland-data-control"] }  # Clipboard with Wayland support
 enigo = { version = "0.6", features = ["wayland", "x11rb"] }  # Keyboard simulation with Wayland and X11 support
 

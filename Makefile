@@ -1,8 +1,8 @@
 # =============================================================================
-# Makefile for MyReviser - AI-Powered Text Revision Tool
+# Makefile for Scribe - AI-Powered Text Revision Tool
 # =============================================================================
 #
-# MyReviser is built with Go (Fyne UI) + Rust FFI (rdev, arboard, enigo)
+# Scribe is built with Go (Fyne UI) + Rust FFI (rdev, arboard, enigo)
 # This Makefile handles cross-platform builds with static linking.
 #
 # Quick Start:
@@ -85,7 +85,7 @@ all: build
 # ============================================================================
 help:
 	@echo "════════════════════════════════════════════════════════════════════════════"
-	@echo "MyReviser Makefile - Rust FFI + Go Static Build"
+	@echo "Scribe Makefile - Rust FFI + Go Static Build"
 	@echo "════════════════════════════════════════════════════════════════════════════"
 	@echo ""
 	@echo "📦 Current Environment:"
@@ -179,7 +179,7 @@ build-rust:
 		RUSTFLAGS="-C target-feature=+crt-static" \
 		cargo build --release --target $(RUST_TARGET)
 	@echo "Copying static library to $(LIB_DIR)..."
-	cp $(RUST_FFI_DIR)/target/$(RUST_TARGET)/release/libmyreviser_ffi.$(LIB_EXT) $(LIB_DIR)/
+	cp $(RUST_FFI_DIR)/target/$(RUST_TARGET)/release/libscribe_ffi.$(LIB_EXT) $(LIB_DIR)/
 	@echo "Copying C header bindings..."
 	test -f $(RUST_FFI_DIR)/bindings.h && cp $(RUST_FFI_DIR)/bindings.h $(RUST_FFI_DIR)/ || true
 	@echo "Rust FFI library built successfully!"
@@ -192,7 +192,7 @@ build-rust-linux:
 		rustup target add x86_64-unknown-linux-musl && \
 		RUSTFLAGS="-C target-feature=+crt-static" \
 		cargo build --release --target x86_64-unknown-linux-musl
-	cp $(RUST_FFI_DIR)/target/x86_64-unknown-linux-musl/release/libmyreviser_ffi.a $(LIB_DIR)/
+	cp $(RUST_FFI_DIR)/target/x86_64-unknown-linux-musl/release/libscribe_ffi.a $(LIB_DIR)/
 	@echo "Linux Rust FFI library built!"
 
 # Build for macOS (current architecture)
@@ -202,7 +202,7 @@ build-rust-darwin:
 	cd $(RUST_FFI_DIR) && \
 		rustup target add $(RUST_TARGET) && \
 		cargo build --release --target $(RUST_TARGET)
-	cp $(RUST_FFI_DIR)/target/$(RUST_TARGET)/release/libmyreviser_ffi.a $(LIB_DIR)/
+	cp $(RUST_FFI_DIR)/target/$(RUST_TARGET)/release/libscribe_ffi.a $(LIB_DIR)/
 	@echo "macOS Rust FFI library built for $(CURRENT_ARCH)!"
 
 # Build for macOS Intel (x86_64)
@@ -212,7 +212,7 @@ build-rust-darwin-amd64:
 	cd $(RUST_FFI_DIR) && \
 		rustup target add x86_64-apple-darwin && \
 		cargo build --release --target x86_64-apple-darwin
-	cp $(RUST_FFI_DIR)/target/x86_64-apple-darwin/release/libmyreviser_ffi.a $(LIB_DIR)/
+	cp $(RUST_FFI_DIR)/target/x86_64-apple-darwin/release/libscribe_ffi.a $(LIB_DIR)/
 	@echo "macOS Intel Rust FFI library built!"
 
 # Build for macOS Apple Silicon (ARM64)
@@ -222,7 +222,7 @@ build-rust-darwin-arm64:
 	cd $(RUST_FFI_DIR) && \
 		rustup target add aarch64-apple-darwin && \
 		cargo build --release --target aarch64-apple-darwin
-	cp $(RUST_FFI_DIR)/target/aarch64-apple-darwin/release/libmyreviser_ffi.a $(LIB_DIR)/
+	cp $(RUST_FFI_DIR)/target/aarch64-apple-darwin/release/libscribe_ffi.a $(LIB_DIR)/
 	@echo "macOS Apple Silicon Rust FFI library built!"
 
 # Build for Windows (MinGW)
@@ -233,7 +233,7 @@ build-rust-windows:
 		rustup target add x86_64-pc-windows-gnu && \
 		RUSTFLAGS="-C target-feature=+crt-static" \
 		cargo build --release --target x86_64-pc-windows-gnu
-	cp $(RUST_FFI_DIR)/target/x86_64-pc-windows-gnu/release/libmyreviser_ffi.a $(LIB_DIR)/
+	cp $(RUST_FFI_DIR)/target/x86_64-pc-windows-gnu/release/libscribe_ffi.a $(LIB_DIR)/
 	@echo "Windows Rust FFI library built!"
 
 # ============================================================================
@@ -255,7 +255,7 @@ ensure-fyne:
 build-go: bundle-assets ensure-fyne
 	@echo "Building Go application with Fyne for $(CURRENT_OS)..."
 	@mkdir -p $(BIN_DIR)
-	@test -f $(LIB_DIR)/libmyreviser_ffi.a || { \
+	@test -f $(LIB_DIR)/libscribe_ffi.a || { \
 		echo "Error: Rust FFI library not found. Run 'make build-rust' first."; \
 		exit 1; \
 	}
@@ -266,46 +266,46 @@ build-go: bundle-assets ensure-fyne
 		--app-build "$(BUILD_NUMBER)"
 	@# Extract the built binary from the package
 ifeq ($(CURRENT_OS),linux)
-	@if [ -f MyReviser.tar.xz ]; then \
-		tar -xf MyReviser.tar.xz; \
+	@if [ -f Scribe.tar.xz ]; then \
+		tar -xf Scribe.tar.xz; \
 		BINARY=$$(find usr/local/bin -type f -executable | head -n 1); \
 		if [ -n "$$BINARY" ]; then \
 			mkdir -p $(BIN_DIR); \
-			cp "$$BINARY" $(BIN_DIR)/myreviser$(BIN_EXT); \
-			rm -rf usr MyReviser.tar.xz; \
+			cp "$$BINARY" $(BIN_DIR)/scribe$(BIN_EXT); \
+			rm -rf usr Scribe.tar.xz; \
 		fi; \
 	fi
 endif
 ifeq ($(CURRENT_OS),darwin)
-	@if [ -d MyReviser.app ]; then \
+	@if [ -d Scribe.app ]; then \
 		mkdir -p $(BIN_DIR); \
-		mv MyReviser.app $(BIN_DIR)/MyReviser.app; \
+		mv Scribe.app $(BIN_DIR)/Scribe.app; \
 	fi
 endif
 ifeq ($(CURRENT_OS),windows)
-	@if [ -f MyReviser.exe ]; then \
+	@if [ -f Scribe.exe ]; then \
 		mkdir -p $(BIN_DIR); \
-		mv MyReviser.exe $(BIN_DIR)/myreviser$(BIN_EXT); \
+		mv Scribe.exe $(BIN_DIR)/scribe$(BIN_EXT); \
 	fi
 endif
 	@echo "Go application built successfully!"
-	@echo "Binary: $(BIN_DIR)/myreviser$(BIN_EXT)"
+	@echo "Binary: $(BIN_DIR)/scribe$(BIN_EXT)"
 	@echo "Version: $(VERSION) (Build: $(BUILD_NUMBER))"
 
 # Build everything (Rust + Go)
 build: build-rust build-go
 	@echo ""
 	@echo "✓ Build complete!"
-	@echo "  Binary: $(BIN_DIR)/myreviser$(BIN_EXT)"
+	@echo "  Binary: $(BIN_DIR)/scribe$(BIN_EXT)"
 	@echo ""
-	@echo "Run with: ./$(BIN_DIR)/myreviser$(BIN_EXT)"
+	@echo "Run with: ./$(BIN_DIR)/scribe$(BIN_EXT)"
 
 # ============================================================================
 # Run
 # ============================================================================
 run: build
-	@echo "Running MyReviser..."
-	./$(BIN_DIR)/myreviser$(BIN_EXT)
+	@echo "Running Scribe..."
+	./$(BIN_DIR)/scribe$(BIN_EXT)
 
 # ============================================================================
 # Testing
@@ -342,13 +342,13 @@ package-all: clean
 			--app-version "$(VERSION)" \
 			--app-build "$(BUILD_NUMBER)"
 	@# Extract binary from package
-	@if [ -f MyReviser.tar.xz ]; then \
-		tar -xf MyReviser.tar.xz; \
+	@if [ -f Scribe.tar.xz ]; then \
+		tar -xf Scribe.tar.xz; \
 		BINARY=$$(find usr/local/bin -type f -executable | head -n 1); \
 		if [ -n "$$BINARY" ]; then \
 			mkdir -p $(BIN_DIR); \
-			cp "$$BINARY" $(BIN_DIR)/myreviser-linux-amd64; \
-			rm -rf usr MyReviser.tar.xz; \
+			cp "$$BINARY" $(BIN_DIR)/scribe-linux-amd64; \
+			rm -rf usr Scribe.tar.xz; \
 		fi; \
 	fi
 
@@ -358,10 +358,10 @@ package-all: clean
 	CGO_ENABLED=1 \
 		GOOS=darwin \
 		GOARCH=amd64 \
-		fyne package --icon assets/icon.png --name MyReviser --app-id me.pngwasi.myreviser --release \
+		fyne package --icon assets/icon.png --name Scribe --app-id me.pngwasi.scribe --release \
 			--app-version "$(VERSION)" \
 			--app-build "$(BUILD_NUMBER)"
-	mv MyReviser.app $(BIN_DIR)/MyReviser-darwin-amd64.app
+	mv Scribe.app $(BIN_DIR)/Scribe-darwin-amd64.app
 
 	@echo ""
 	@echo "=== Building for macOS (Apple Silicon) ==="
@@ -369,10 +369,10 @@ package-all: clean
 	CGO_ENABLED=1 \
 		GOOS=darwin \
 		GOARCH=arm64 \
-		fyne package --icon assets/icon.png --name MyReviser --app-id me.pngwasi.myreviser --release \
+		fyne package --icon assets/icon.png --name Scribe --app-id me.pngwasi.scribe --release \
 			--app-version "$(VERSION)" \
 			--app-build "$(BUILD_NUMBER)"
-	mv MyReviser.app $(BIN_DIR)/MyReviser-darwin-arm64.app
+	mv Scribe.app $(BIN_DIR)/Scribe-darwin-arm64.app
 
 	@echo ""
 	@echo "=== Building for Windows ==="
@@ -385,9 +385,9 @@ package-all: clean
 			--app-version "$(VERSION)" \
 			--app-build "$(BUILD_NUMBER)"
 	@# Move the exe to bin directory
-	@if [ -f MyReviser.exe ]; then \
+	@if [ -f Scribe.exe ]; then \
 		mkdir -p $(BIN_DIR); \
-		mv MyReviser.exe $(BIN_DIR)/myreviser-windows-amd64.exe; \
+		mv Scribe.exe $(BIN_DIR)/scribe-windows-amd64.exe; \
 	fi
 
 	@echo ""
@@ -401,16 +401,16 @@ verify-static:
 	@echo "Verifying static linking..."
 ifeq ($(CURRENT_OS),linux)
 	@echo "Linux binary dependencies:"
-	ldd $(BIN_DIR)/myreviser$(BIN_EXT) || echo "✓ Statically linked (no dynamic dependencies)"
+	ldd $(BIN_DIR)/scribe$(BIN_EXT) || echo "✓ Statically linked (no dynamic dependencies)"
 endif
 ifeq ($(CURRENT_OS),darwin)
 	@echo "macOS binary dependencies:"
-	otool -L $(BIN_DIR)/myreviser$(BIN_EXT)
+	otool -L $(BIN_DIR)/scribe$(BIN_EXT)
 	@echo "Note: macOS system frameworks are required (cannot be fully static)"
 endif
 ifeq ($(CURRENT_OS),windows)
 	@echo "Windows binary dependencies:"
-	objdump -p $(BIN_DIR)/myreviser$(BIN_EXT) | grep "DLL Name:" || echo "No DLL dependencies found"
+	objdump -p $(BIN_DIR)/scribe$(BIN_EXT) | grep "DLL Name:" || echo "No DLL dependencies found"
 endif
 
 # ============================================================================
@@ -462,7 +462,7 @@ clean-go:
 dev: build-rust
 	@echo "Starting development mode..."
 	@echo "Building Rust FFI library first (if needed)..."
-	@test -f $(LIB_DIR)/libmyreviser_ffi.a || $(MAKE) build-rust
+	@test -f $(LIB_DIR)/libscribe_ffi.a || $(MAKE) build-rust
 	@echo "Running Go application with hot reload..."
 	@command -v air >/dev/null 2>&1 || { \
 		echo "Air not found. Installing air for hot reload..."; \
@@ -491,9 +491,9 @@ update-deps:
 
 # Install locally (after building)
 install: build
-	@echo "Installing MyReviser locally..."
-	install -m 755 $(BIN_DIR)/myreviser$(BIN_EXT) /usr/local/bin/myreviser
-	@echo "Installed to /usr/local/bin/myreviser"
+	@echo "Installing Scribe locally..."
+	install -m 755 $(BIN_DIR)/scribe$(BIN_EXT) /usr/local/bin/scribe
+	@echo "Installed to /usr/local/bin/scribe"
 
 # ============================================================================
 # CI/CD Helpers
@@ -520,7 +520,7 @@ ci-package:
 .PHONY: examples
 examples:
 	@echo "════════════════════════════════════════════════════════════════════════════"
-	@echo "MyReviser - Common Usage Examples"
+	@echo "Scribe - Common Usage Examples"
 	@echo "════════════════════════════════════════════════════════════════════════════"
 	@echo ""
 	@echo "1️⃣  First Time Setup:"
@@ -536,7 +536,7 @@ examples:
 	@echo "3️⃣  Building for Release:"
 	@echo "   $$ make clean                # Clean previous builds"
 	@echo "   $$ make build                # Build optimized binary"
-	@echo "   $$ ./bin/myreviser           # Run the binary"
+	@echo "   $$ ./bin/scribe           # Run the binary"
 	@echo ""
 	@echo "4️⃣  Cross-Platform Build (macOS example):"
 	@echo "   # Build for your Mac (auto-detects Intel or Apple Silicon)"

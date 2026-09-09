@@ -9,12 +9,12 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/systray"
-	"github.com/paradoxe35/myreviser/internal/config"
-	"github.com/paradoxe35/myreviser/internal/input"
-	"github.com/paradoxe35/myreviser/internal/logger"
-	"github.com/paradoxe35/myreviser/internal/permissions"
-	"github.com/paradoxe35/myreviser/internal/revision"
-	"github.com/paradoxe35/myreviser/ui"
+	"github.com/paradoxe35/scribe/internal/config"
+	"github.com/paradoxe35/scribe/internal/input"
+	"github.com/paradoxe35/scribe/internal/logger"
+	"github.com/paradoxe35/scribe/internal/permissions"
+	"github.com/paradoxe35/scribe/internal/revision"
+	"github.com/paradoxe35/scribe/ui"
 )
 
 // Application represents the main application
@@ -93,7 +93,7 @@ func NewApplication(app fyne.App, cfg *config.Config) (*Application, error) {
 
 	// Set tray tooltip
 	app.Lifecycle().SetOnStarted(func() {
-		systray.SetTooltip("MyReviser - AI Text Revision Tool")
+		systray.SetTooltip("Scribe - AI Text Revision Tool")
 		installReopenHandler(application.ShowWindow)
 	})
 
@@ -105,47 +105,33 @@ func NewApplication(app fyne.App, cfg *config.Config) (*Application, error) {
 	return application, nil
 }
 
-// setupHotkeys configures the hotkey handlers
+// setupHotkeys binds every enabled action to its shortcut.
 func (a *Application) setupHotkeys() {
-	// Register select_all handler with FFI
-	err := a.hotkeyManager.RegisterHotkey(a.config.Hotkeys.SelectAll, "select_all", func() {
-		logger.Info("Select all hotkey triggered")
+	for _, kind := range config.ActionOrder {
+		action := a.config.Action(kind)
+		if !action.Enabled || action.Hotkey == "" {
+			continue
+		}
 
-		// Check if already processing
+		err := a.hotkeyManager.RegisterHotkey(action.Hotkey, string(kind), a.actionHandler(kind))
+		a.reportBindingFailure(action.Hotkey, err)
+	}
+}
+
+func (a *Application) actionHandler(kind config.ActionKind) func() {
+	return func() {
+		logger.Info("Hotkey triggered", "action", kind)
+
 		if a.processor.IsProcessing() {
-			a.notifications.ShowInfo("Please Wait", "A revision is already in progress")
+			a.notifications.ShowInfo("Please Wait", "Another action is already running")
 			return
 		}
 
-		// Process without showing notification unless error occurs
-		if err := a.processor.ProcessSelectAll(); err != nil {
-			logger.Error("Failed to process select all", "error", err)
-			a.notifications.ShowError("Revision Failed", err.Error())
-		} else {
-			logger.Info("Text revised successfully")
+		if err := a.processor.Run(kind); err != nil {
+			logger.Error("Action failed", "action", kind, "error", err)
+			a.notifications.ShowError(kind.Label()+" failed", err.Error())
 		}
-	})
-	a.reportBindingFailure(a.config.Hotkeys.SelectAll, err)
-
-	// Register selection handler with FFI
-	err = a.hotkeyManager.RegisterHotkey(a.config.Hotkeys.Selection, "selection", func() {
-		logger.Info("Selection hotkey triggered")
-
-		// Check if already processing
-		if a.processor.IsProcessing() {
-			a.notifications.ShowInfo("Please Wait", "A revision is already in progress")
-			return
-		}
-
-		// Process without showing notification unless error occurs
-		if err := a.processor.ProcessSelection(); err != nil {
-			logger.Error("Failed to process selection", "error", err)
-			a.notifications.ShowError("Revision Failed", err.Error())
-		} else {
-			logger.Info("Text revised successfully")
-		}
-	})
-	a.reportBindingFailure(a.config.Hotkeys.Selection, err)
+	}
 }
 
 // reportBindingFailure says so when a shortcut could not be registered.
@@ -193,9 +179,7 @@ func (a *Application) reloadHotkeysFromConfig() {
 	a.setupHotkeys()
 
 	// No need to stop/start - the running listener will use the updated bindings
-	logger.Info("Hotkeys reloaded successfully",
-		"select_all", a.config.Hotkeys.SelectAll,
-		"selection", a.config.Hotkeys.Selection)
+	logger.Info("Hotkeys reloaded successfully")
 }
 
 // setupPermissions initialises macOS permission handling and keeps the UI in sync.

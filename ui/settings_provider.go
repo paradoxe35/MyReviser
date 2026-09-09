@@ -1,0 +1,482 @@
+package ui
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
+	"github.com/paradoxe35/scribe/internal/ai"
+	"github.com/paradoxe35/scribe/internal/config"
+	"github.com/paradoxe35/scribe/internal/logger"
+)
+
+func (w *MainWindow) loadProviderSettings(provider string) {
+	settings := w.config.GetProviderSettings(provider)
+
+	apiKey, _ := w.config.GetAPIKey(provider)
+	w.apiKeyBinding.Set(apiKey)
+	w.modelBinding.Set(settings.Model)
+
+	isCustom := w.config.IsCustomProvider(provider)
+	if isCustom {
+		w.baseURLBinding.Set(settings.BaseURL)
+	} else {
+		w.baseURLBinding.Set("")
+	}
+
+	w.updateProviderUI(provider)
+}
+func (w *MainWindow) createProviderSection() fyne.CanvasObject {
+	selected, _ := w.providerBinding.Get()
+
+	providerSection := w.createProviderSelectionSection(selected)
+	configSection := w.createProviderConfigSection()
+	testSection := w.createConnectionTestSection()
+
+	w.updateProviderUI(selected)
+
+	content := container.NewVBox(
+		container.NewPadded(providerSection),
+		widget.NewSeparator(),
+		container.NewPadded(configSection),
+		widget.NewSeparator(),
+		container.NewPadded(testSection),
+	)
+
+	return content
+}
+
+func (w *MainWindow) createProviderSelectionSection(selected string) fyne.CanvasObject {
+	providerLabel := widget.NewLabel("AI Provider:")
+	providerLabel.TextStyle.Bold = true
+
+	providerNames := w.config.GetAllProviderNames()
+	providerOptions := append(providerNames, "-- Add Custom Provider --")
+
+	w.providerSelect = widget.NewSelect(
+		providerOptions,
+		func(value string) {
+			if value == "-- Add Custom Provider --" {
+				w.showAddCustomProviderDialog()
+				w.providerSelect.SetSelected(w.config.GetCurrentProvider())
+				return
+			}
+
+			w.providerBinding.Set(value)
+			w.loadProviderSettings(value)
+		},
+	)
+	w.providerSelect.SetSelected(selected)
+
+	w.deleteProviderButton = widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
+		w.showDeleteProviderConfirmation()
+	})
+	w.deleteProviderButton.Importance = widget.DangerImportance
+
+	providerRow := container.NewBorder(nil, nil, nil, w.deleteProviderButton, w.providerSelect)
+
+	content := container.NewVBox(
+		providerLabel,
+		providerRow,
+	)
+
+	return content
+}
+
+func (w *MainWindow) createProviderConfigSection() fyne.CanvasObject {
+	// API Key section
+	apiKeyLabel := widget.NewLabel("API Key:")
+	apiKeyLabel.TextStyle.Bold = true
+	apiKeyEntry := widget.NewPasswordEntry()
+	apiKeyEntry.Bind(w.apiKeyBinding)
+	apiKeyEntry.PlaceHolder = "Enter your API key"
+	apiKeyEntry.Validator = nil // Disable validation icon
+
+	// Model section
+	modelLabel := widget.NewLabel("Model:")
+	modelLabel.TextStyle.Bold = true
+	modelEntry := widget.NewEntry()
+	modelEntry.Bind(w.modelBinding)
+	modelEntry.PlaceHolder = "e.g., gpt-4o"
+	modelEntry.Validator = nil // Disable validation icon
+
+	// Base URL section (for custom endpoints - only for OpenAI)
+	baseURLLabel := widget.NewLabel("Base URL:")
+	baseURLLabel.TextStyle.Bold = true
+	w.baseURLEntry = widget.NewEntry()
+	w.baseURLEntry.Bind(w.baseURLBinding)
+	w.baseURLEntry.PlaceHolder = "https://api.openai.com/v1 (optional)"
+	w.baseURLEntry.Validator = nil // Disable validation icon
+
+	// Create Base URL container for visibility control
+	w.baseURLContainer = container.NewVBox(
+		widget.NewSeparator(),
+		baseURLLabel,
+		w.baseURLEntry,
+	)
+
+	// Configuration form with proper spacing
+	configForm := container.NewVBox(
+		apiKeyLabel,
+		apiKeyEntry,
+		widget.NewSeparator(),
+		modelLabel,
+		modelEntry,
+		w.baseURLContainer,
+	)
+
+	return configForm
+}
+
+func (w *MainWindow) createConnectionTestSection() fyne.CanvasObject {
+	// Test connection button
+	testBtn := widget.NewButtonWithIcon("Test Connection", theme.ConfirmIcon(), func() {
+		w.testAPIConnection()
+	})
+	testBtn.Importance = widget.MediumImportance
+
+	// Layout with proper spacing
+	return container.NewVBox(
+		widget.NewLabel("Test your settings:"),
+		testBtn,
+	)
+}
+func (w *MainWindow) testAPIConnection() {
+	w.statusBinding.Set("Testing API connection...")
+
+	go func() {
+		provider, _ := w.providerBinding.Get()
+		settings := w.config.GetProviderSettings(provider)
+		apiKey, _ := w.apiKeyBinding.Get()
+		model, _ := w.modelBinding.Get()
+		baseURL, _ := w.baseURLBinding.Get()
+
+		if apiKey == "" {
+			fyne.Do(func() {
+				w.statusBinding.Set("Error: API key is required")
+			})
+			return
+		}
+
+		var testProvider ai.Provider
+		isCustom := w.config.IsCustomProvider(provider)
+
+		if isCustom {
+			if baseURL == "" {
+				fyne.Do(func() {
+					w.statusBinding.Set("Error: Base URL is required for custom providers")
+				})
+				return
+			}
+			customProvider, err := ai.NewCustomProvider(provider, settings.ProviderType, apiKey, baseURL, model, settings.Temperature)
+			if err != nil {
+				fyne.Do(func() {
+					w.statusBinding.Set(fmt.Sprintf("Error: %s", err.Error()))
+				})
+				return
+			}
+			testProvider = customProvider
+		} else {
+			switch provider {
+			case config.BuiltInOpenAI:
+				testProvider = ai.NewOpenAIProvider(apiKey, baseURL, model, settings.Temperature)
+			case config.BuiltInClaude:
+				testProvider = ai.NewAnthropicProvider(apiKey, baseURL, model, settings.Temperature)
+			case config.BuiltInGemini:
+				testProvider = ai.NewGeminiProvider(apiKey, baseURL, model, settings.Temperature)
+			default:
+				fyne.Do(func() {
+					w.statusBinding.Set("Error: Unknown provider")
+				})
+				return
+			}
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		testText := "Hello"
+		testPrompt := "Reply with 'Connection successful' if you receive this message."
+
+		_, err := testProvider.ReviseText(ctx, testText, testPrompt)
+		if err != nil {
+			errMsg := err.Error()
+			if len(errMsg) > 80 {
+				errMsg = errMsg[:77] + "..."
+			}
+			fyne.Do(func() {
+				w.statusBinding.Set(fmt.Sprintf("Connection failed: %s", errMsg))
+			})
+			logger.Error("API connection test failed", "error", err)
+		} else {
+			fyne.Do(func() {
+				w.statusBinding.Set("Connection successful!")
+			})
+			logger.Info("API connection test successful",
+				"provider", provider,
+				"model", model,
+				"temperature", settings.Temperature,
+				"custom", isCustom,
+			)
+		}
+	}()
+}
+func (w *MainWindow) updateProviderUI(provider string) {
+	isCustom := w.config.IsCustomProvider(provider)
+
+	if w.deleteProviderButton != nil {
+		if isCustom {
+			w.deleteProviderButton.Show()
+		} else {
+			w.deleteProviderButton.Hide()
+		}
+	}
+
+	if w.baseURLContainer != nil {
+		if isCustom {
+			w.baseURLContainer.Show()
+			if w.baseURLEntry != nil {
+				w.baseURLEntry.PlaceHolder = "Required for custom providers"
+			}
+		} else {
+			w.baseURLContainer.Hide()
+		}
+	}
+
+}
+
+func (w *MainWindow) refreshProviderList() {
+	if w.providerSelect == nil {
+		return
+	}
+	providerNames := w.config.GetAllProviderNames()
+	providerOptions := append(providerNames, "-- Add Custom Provider --")
+	w.providerSelect.Options = providerOptions
+	w.providerSelect.Refresh()
+}
+
+func (w *MainWindow) showAddCustomProviderDialog() {
+	nameEntry := widget.NewEntry()
+	nameEntry.PlaceHolder = "my-custom-provider"
+
+	baseURLEntry := widget.NewEntry()
+	baseURLEntry.PlaceHolder = "https://api.example.com/v1"
+
+	apiKeyEntry := widget.NewPasswordEntry()
+	apiKeyEntry.PlaceHolder = "Enter API key"
+
+	requiresKey := widget.NewCheck("Requires an API key", func(checked bool) {
+		if checked {
+			apiKeyEntry.Enable()
+		} else {
+			apiKeyEntry.SetText("")
+			apiKeyEntry.Disable()
+		}
+	})
+	requiresKey.SetChecked(true)
+
+	lowReasoning := widget.NewCheck("Ask reasoning models to think less", nil)
+
+	modelEntry := widget.NewEntry()
+	modelEntry.PlaceHolder = "e.g., gpt-4 or llama3"
+
+	errorLabel := widget.NewLabel("")
+	errorLabel.Wrapping = fyne.TextWrapWord
+	errorLabel.Importance = widget.DangerImportance
+
+	fetchModelsBtn := widget.NewButton("Fetch Models", func() {
+		w.fetchModelsForCustomProvider(apiKeyEntry.Text, baseURLEntry.Text, modelEntry, errorLabel)
+	})
+
+	form := container.NewVBox(
+		widget.NewLabel("Provider Name:"),
+		nameEntry,
+		widget.NewSeparator(),
+		widget.NewLabel("Base URL (required):"),
+		baseURLEntry,
+		widget.NewSeparator(),
+		widget.NewLabel("API Key:"),
+		apiKeyEntry,
+		requiresKey,
+		lowReasoning,
+		widget.NewSeparator(),
+		widget.NewLabel("Model:"),
+		container.NewBorder(nil, nil, nil, fetchModelsBtn, modelEntry),
+		errorLabel,
+	)
+
+	scrollContainer := container.NewScroll(form)
+	scrollContainer.SetMinSize(fyne.NewSize(400, 350))
+
+	var d dialog.Dialog
+
+	addBtn := widget.NewButton("Add", func() {
+		// Clear previous error
+		errorLabel.SetText("")
+
+		name := strings.TrimSpace(nameEntry.Text)
+		if name == "" {
+			errorLabel.SetText("Provider name is required")
+			return
+		}
+
+		baseURL := strings.TrimSpace(baseURLEntry.Text)
+		if baseURL == "" {
+			errorLabel.SetText("Base URL is required")
+			return
+		}
+
+		settings := config.ProviderSettings{
+			BaseURL:      baseURL,
+			Model:        strings.TrimSpace(modelEntry.Text),
+			Temperature:  1.0,
+			IsCustom:     true,
+			ProviderType: config.ProviderTypeOpenAICompatible,
+			NoAPIKey:     !requiresKey.Checked,
+			LowReasoning: lowReasoning.Checked,
+		}
+
+		if err := w.config.AddCustomProvider(name, settings); err != nil {
+			errorLabel.SetText(err.Error())
+			return
+		}
+
+		if apiKey := strings.TrimSpace(apiKeyEntry.Text); apiKey != "" {
+			if err := w.config.SaveAPIKey(name, apiKey); err != nil {
+				errorLabel.SetText(fmt.Sprintf("Error saving API key: %s", err.Error()))
+				return
+			}
+		}
+
+		if err := w.config.Save(); err != nil {
+			errorLabel.SetText(fmt.Sprintf("Error saving: %s", err.Error()))
+			return
+		}
+
+		// Success - close dialog and update UI
+		d.Hide()
+		w.refreshProviderList()
+		w.providerSelect.SetSelected(name)
+		w.providerBinding.Set(name)
+		w.loadProviderSettings(name)
+		w.statusBinding.Set(fmt.Sprintf("Custom provider '%s' added", name))
+	})
+	addBtn.Importance = widget.HighImportance
+
+	cancelBtn := widget.NewButton("Cancel", func() {
+		d.Hide()
+	})
+
+	buttons := container.NewHBox(cancelBtn, addBtn)
+	content := container.NewBorder(nil, buttons, nil, nil, scrollContainer)
+
+	d = dialog.NewCustomWithoutButtons("Add Custom Provider", content, w.Window)
+	d.Resize(fyne.NewSize(450, 480))
+	d.Show()
+}
+
+func (w *MainWindow) showDeleteProviderConfirmation() {
+	currentProvider, _ := w.providerBinding.Get()
+
+	if !w.config.IsCustomProvider(currentProvider) {
+		dialog.ShowError(fmt.Errorf("cannot delete built-in provider"), w.Window)
+		return
+	}
+
+	dialog.ShowConfirm(
+		"Delete Provider",
+		fmt.Sprintf("Are you sure you want to delete '%s'?\n\nThis action cannot be undone.", currentProvider),
+		func(confirmed bool) {
+			if !confirmed {
+				return
+			}
+
+			if err := w.config.DeleteCustomProvider(currentProvider); err != nil {
+				w.statusBinding.Set(fmt.Sprintf("Error: %s", err.Error()))
+				return
+			}
+
+			if err := w.config.Save(); err != nil {
+				w.statusBinding.Set(fmt.Sprintf("Error saving: %s", err.Error()))
+				return
+			}
+
+			w.refreshProviderList()
+			newProvider := w.config.GetCurrentProvider()
+			w.providerSelect.SetSelected(newProvider)
+			w.providerBinding.Set(newProvider)
+			w.loadProviderSettings(newProvider)
+			w.statusBinding.Set(fmt.Sprintf("Provider '%s' deleted", currentProvider))
+		},
+		w.Window,
+	)
+}
+
+func (w *MainWindow) fetchModelsForCustomProvider(apiKey, baseURL string, modelEntry *widget.Entry, statusLabel *widget.Label) {
+	if apiKey == "" || baseURL == "" {
+		statusLabel.SetText("API key and Base URL are required")
+		return
+	}
+
+	statusLabel.SetText("Fetching models...")
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		models, err := ai.FetchModelsOpenAI(ctx, apiKey, baseURL)
+
+		fyne.Do(func() {
+			if err != nil {
+				statusLabel.SetText(fmt.Sprintf("Error: %s", err.Error()))
+				return
+			}
+
+			if len(models) == 0 {
+				statusLabel.SetText("No models found")
+				return
+			}
+
+			statusLabel.SetText(fmt.Sprintf("Found %d models", len(models)))
+
+			modelNames := make([]string, len(models))
+			for i, m := range models {
+				modelNames[i] = m.ID
+			}
+
+			modelList := widget.NewList(
+				func() int { return len(modelNames) },
+				func() fyne.CanvasObject {
+					return widget.NewLabel("model-name-placeholder")
+				},
+				func(id widget.ListItemID, obj fyne.CanvasObject) {
+					obj.(*widget.Label).SetText(modelNames[id])
+				},
+			)
+
+			var modelDialog dialog.Dialog
+			modelList.OnSelected = func(id widget.ListItemID) {
+				modelEntry.SetText(modelNames[id])
+				modelDialog.Hide()
+			}
+
+			listContainer := container.NewScroll(modelList)
+			listContainer.SetMinSize(fyne.NewSize(350, 250))
+
+			modelDialog = dialog.NewCustom(
+				fmt.Sprintf("Select Model (%d available)", len(models)),
+				"Close",
+				listContainer,
+				w.Window,
+			)
+			modelDialog.Resize(fyne.NewSize(400, 350))
+			modelDialog.Show()
+		})
+	}()
+}

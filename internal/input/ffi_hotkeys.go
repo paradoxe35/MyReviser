@@ -6,14 +6,14 @@ package input
 #cgo CFLAGS: -I${SRCDIR}/../../rust-ffi
 
 // Linux (includes X11 and Wayland dependencies)
-#cgo linux LDFLAGS: ${SRCDIR}/../../lib/libmyreviser_ffi.a -lpthread -ldl -lm -lxdo -lX11 -lXtst -lXi -lxkbcommon
+#cgo linux LDFLAGS: ${SRCDIR}/../../lib/libscribe_ffi.a -lpthread -ldl -lm -lxdo -lX11 -lXtst -lXi -lxkbcommon
 
 // macOS
-#cgo darwin LDFLAGS: ${SRCDIR}/../../lib/libmyreviser_ffi.a
+#cgo darwin LDFLAGS: ${SRCDIR}/../../lib/libscribe_ffi.a
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -framework AppKit -framework ApplicationServices -framework Carbon
 
 // Windows
-#cgo windows LDFLAGS: ${SRCDIR}/../../lib/libmyreviser_ffi.a
+#cgo windows LDFLAGS: ${SRCDIR}/../../lib/libscribe_ffi.a
 #cgo windows LDFLAGS: -lws2_32 -luserenv -lbcrypt -lntdll -static
 
 #include <stdlib.h>
@@ -29,14 +29,14 @@ import (
 
 	"unsafe"
 
-	"github.com/paradoxe35/myreviser/internal/logger"
+	"github.com/paradoxe35/scribe/internal/logger"
 )
 
 // FFIHotkeyManager wraps the Rust FFI hotkey manager
 type FFIHotkeyManager struct {
 	mu          sync.RWMutex
 	ffiMu       sync.Mutex // Separate mutex for FFI calls
-	handle      C.myreviser_HotkeyManagerHandle
+	handle      C.scribe_HotkeyManagerHandle
 	handlers    map[string]func()
 	active      bool
 	disabled    bool
@@ -49,7 +49,7 @@ var globalFFIMu sync.Mutex
 
 // NewFFIHotkeyManager creates a new FFI-based hotkey manager
 func NewFFIHotkeyManager() *FFIHotkeyManager {
-	handle := C.myreviser_hotkey_manager_new()
+	handle := C.scribe_hotkey_manager_new()
 	if handle == nil {
 		logger.Error("Failed to create FFI hotkey manager")
 		return nil
@@ -95,7 +95,7 @@ func (h *FFIHotkeyManager) ClearBindings() error {
 	h.mu.Unlock()
 
 	h.ffiMu.Lock()
-	result := C.myreviser_hotkey_clear(h.handle)
+	result := C.scribe_hotkey_clear(h.handle)
 	h.ffiMu.Unlock()
 
 	if result != 0 {
@@ -123,11 +123,11 @@ func (h *FFIHotkeyManager) RegisterHotkey(binding, action string, handler func()
 	defer C.free(unsafe.Pointer(cBinding))
 	defer C.free(unsafe.Pointer(cAction))
 
-	result := C.myreviser_hotkey_register(
+	result := C.scribe_hotkey_register(
 		h.handle,
 		cBinding,
 		cAction,
-		C.myreviser_HotkeyCallback(C.hotkeyCallbackGateway),
+		C.scribe_HotkeyCallback(C.hotkeyCallbackGateway),
 	)
 
 	if result != 0 {
@@ -148,13 +148,13 @@ func (h *FFIHotkeyManager) ListenError() string {
 	}
 
 	h.ffiMu.Lock()
-	cStr := C.myreviser_hotkey_listen_error(h.handle)
+	cStr := C.scribe_hotkey_listen_error(h.handle)
 	h.ffiMu.Unlock()
 
 	if cStr == nil {
 		return ""
 	}
-	defer C.myreviser_free_string(cStr)
+	defer C.scribe_free_string(cStr)
 
 	return C.GoString(cStr)
 }
@@ -175,7 +175,7 @@ func (h *FFIHotkeyManager) Start() error {
 	logger.Info("FFI: Starting hotkey manager")
 
 	h.ffiMu.Lock()
-	result := C.myreviser_hotkey_start(h.handle)
+	result := C.scribe_hotkey_start(h.handle)
 	h.ffiMu.Unlock()
 
 	if result != 0 {
@@ -206,7 +206,7 @@ func (h *FFIHotkeyManager) Stop() {
 	logger.Info("FFI: Stopping hotkey manager")
 
 	h.ffiMu.Lock()
-	result := C.myreviser_hotkey_stop(h.handle)
+	result := C.scribe_hotkey_stop(h.handle)
 	h.ffiMu.Unlock()
 
 	if result != 0 {
@@ -238,7 +238,7 @@ func (h *FFIHotkeyManager) Close() {
 		logger.Info("FFI: Freeing hotkey manager resources")
 
 		h.ffiMu.Lock()
-		C.myreviser_hotkey_manager_free(h.handle)
+		C.scribe_hotkey_manager_free(h.handle)
 		h.ffiMu.Unlock()
 
 		h.handle = nil

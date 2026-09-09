@@ -1,6 +1,6 @@
-#ifndef MYREVISER_REOPEN_H
-#define MYREVISER_REOPEN_H
+#ifndef SCRIBE_REOPEN_H
+#define SCRIBE_REOPEN_H
 
-void MyReviserInstallReopenHandler(void);
+void ScribeInstallReopenHandler(void);
 
 #endif

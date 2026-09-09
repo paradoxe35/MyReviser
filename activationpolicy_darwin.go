@@ -30,15 +30,15 @@ void SetActivationPolicyAccessory(void) {
 */
 import "C"
 
-import "github.com/paradoxe35/myreviser/internal/logger"
+import "github.com/paradoxe35/scribe/internal/logger"
 
-// showInDock puts MyReviser in the Dock and brings its window forward.
+// showInDock puts Scribe in the Dock and brings its window forward.
 func showInDock() {
 	logger.Info("Setting macOS activation policy to Regular (show in Dock)")
 	C.SetActivationPolicyRegular()
 }
 
-// hideFromDock returns MyReviser to a menu-bar-only app.
+// hideFromDock returns Scribe to a menu-bar-only app.
 func hideFromDock() {
 	logger.Info("Setting macOS activation policy to Accessory (hide from Dock)")
 	C.SetActivationPolicyAccessory()

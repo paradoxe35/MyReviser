@@ -21,8 +21,8 @@ go.work
 bin/
 build/
 dist/
-myreviser
-myreviser.exe
+scribe
+scribe.exe
 *.AppImage
 *.dmg
 *.deb
@@ -31,7 +31,7 @@ myreviser.exe
 *.tar.xz
 *.zip
 .gocache
-MyReviser.app
+Scribe.app
 
 # Fyne bundled resources
 bundled.go
@@ -50,7 +50,7 @@ fyne_metadata_init.go
 rust/
 
 # Config and lock files (local testing)
-.myreviser/
+.scribe/
 tmp-pkg/
 *.lock
 tmp/
