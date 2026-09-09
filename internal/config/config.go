@@ -131,29 +131,25 @@ func defaultAppearance() AppearanceConfig {
 	}
 }
 
-// Load loads the configuration from disk
+// Load reads the configuration from disk, writing defaults on first run.
 func Load() (*Config, error) {
 	configMutex.Lock()
 	defer configMutex.Unlock()
 
-	// Ensure config directory exists
 	configDir := filepath.Dir(ConfigPath())
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Check if config file exists
 	if _, err := os.Stat(ConfigPath()); os.IsNotExist(err) {
-		// Create default config
 		cfg := Default()
-		if err := cfg.Save(); err != nil {
+		if err := cfg.write(); err != nil {
 			return nil, fmt.Errorf("failed to save default config: %w", err)
 		}
 		currentConfig = cfg
 		return cfg, nil
 	}
 
-	// Read config file
 	data, err := os.ReadFile(ConfigPath())
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -180,28 +176,34 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// Save saves the configuration to disk
-func (c *Config) Save() error {
-	c.mu.Lock()
+// write persists the config without touching the package mutex, so callers
+// that already hold it do not deadlock against themselves.
+func (c *Config) write() error {
+	c.mu.RLock()
 	data, err := json.MarshalIndent(c, "", "  ")
+	c.mu.RUnlock()
+
 	if err != nil {
-		c.mu.Unlock()
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
 	if err := os.WriteFile(ConfigPath(), data, 0644); err != nil {
-		c.mu.Unlock()
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
-	c.mu.Unlock()
+	return nil
+}
 
-	// Update global config and notify listeners
+// Save persists the config, publishes it as current, and notifies listeners.
+func (c *Config) Save() error {
+	if err := c.write(); err != nil {
+		return err
+	}
+
 	configMutex.Lock()
 	currentConfig = c
 	configMutex.Unlock()
 
 	notifyListeners(c)
-
 	return nil
 }
 
