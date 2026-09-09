@@ -136,6 +136,33 @@ func TestProviderForPrefersOverrideThenDefault(t *testing.T) {
 	}
 }
 
+func TestConfiguredProvidersRequireUsableSettings(t *testing.T) {
+	cfg := &Config{
+		AIProvider: AIProviderConfig{
+			Provider: BuiltInOpenAI,
+			Providers: map[string]ProviderSettings{
+				BuiltInOpenAI:   {BaseURL: "https://api.openai.com/v1", Model: "gpt-4o"},
+				BuiltInClaude:   {BaseURL: "https://api.anthropic.com", Model: "claude"},
+				"local":         {BaseURL: "http://localhost:1234/v1", Model: "llama", IsCustom: true, NoAPIKey: true},
+				"missing-model": {BaseURL: "http://localhost:1234/v1", IsCustom: true, NoAPIKey: true},
+			},
+		},
+	}
+
+	encrypted, err := EncryptAPIKey("openai-key")
+	if err != nil {
+		t.Fatalf("EncryptAPIKey failed: %v", err)
+	}
+	settings := cfg.AIProvider.Providers[BuiltInOpenAI]
+	settings.APIKey = encrypted
+	cfg.AIProvider.Providers[BuiltInOpenAI] = settings
+
+	configured := cfg.GetConfiguredProviderNames()
+	if len(configured) != 2 || configured[0] != BuiltInOpenAI || configured[1] != "local" {
+		t.Fatalf("configured providers = %v, want [openai local]", configured)
+	}
+}
+
 func TestApplyDefaultsRepairsPartialConfig(t *testing.T) {
 	cfg := &Config{}
 	cfg.applyDefaults()

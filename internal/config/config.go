@@ -338,6 +338,43 @@ func (c *Config) GetAllProviderNames() []string {
 	return names
 }
 
+// GetConfiguredProviderNames returns providers that have enough configuration
+// to be used by an AI-backed operation. Built-ins require a model and API key;
+// custom providers may omit the key when NoAPIKey is enabled, but still need a
+// model and endpoint.
+func (c *Config) GetConfiguredProviderNames() []string {
+	c.mu.RLock()
+	providers := make(map[string]ProviderSettings, len(c.AIProvider.Providers))
+	for name, settings := range c.AIProvider.Providers {
+		providers[name] = settings
+	}
+	c.mu.RUnlock()
+
+	configured := make([]string, 0, len(providers))
+	for name, settings := range providers {
+		if strings.TrimSpace(settings.Model) == "" || strings.TrimSpace(settings.BaseURL) == "" {
+			continue
+		}
+		if settings.RequiresAPIKey() {
+			apiKey, err := c.GetAPIKey(name)
+			if err != nil || strings.TrimSpace(apiKey) == "" {
+				continue
+			}
+		}
+		configured = append(configured, name)
+	}
+
+	sort.SliceStable(configured, func(i, j int) bool {
+		leftBuiltIn := IsBuiltInProvider(configured[i])
+		rightBuiltIn := IsBuiltInProvider(configured[j])
+		if leftBuiltIn != rightBuiltIn {
+			return leftBuiltIn
+		}
+		return strings.ToLower(configured[i]) < strings.ToLower(configured[j])
+	})
+	return configured
+}
+
 func isValidProviderName(name string) bool {
 	if name == "" {
 		return false

@@ -118,7 +118,29 @@ func syncTimeoutLabel(label *widget.Label, value float64) {
 }
 
 func (w *MainWindow) providerOptions() []string {
-	return append([]string{providerDefaultOption}, w.config.GetAllProviderNames()...)
+	return append([]string{providerDefaultOption}, w.config.GetConfiguredProviderNames()...)
+}
+
+func (w *MainWindow) refreshOperationProviderOptions() {
+	options := w.providerOptions()
+	for _, editor := range w.operationEditors {
+		selected := editor.provider.Selected
+		editor.provider.Options = options
+		if providerID(selected) != "" && !containsProviderOption(options, selected) {
+			selected = providerDefaultOption
+		}
+		editor.provider.Selected = selected
+		editor.provider.Refresh()
+	}
+}
+
+func containsProviderOption(options []string, selected string) bool {
+	for _, option := range options {
+		if option == selected {
+			return true
+		}
+	}
+	return false
 }
 
 func providerLabel(id string) string {

@@ -362,6 +362,7 @@ func (w *MainWindow) showAddCustomProviderDialog() {
 		// Success - close dialog and update UI
 		d.Hide()
 		w.refreshProviderList()
+		w.refreshOperationProviderOptions()
 		w.providerSelect.SetSelected(name)
 		w.providerBinding.Set(name)
 		w.loadProviderSettings(name)

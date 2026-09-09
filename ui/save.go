@@ -78,6 +78,7 @@ func (w *MainWindow) applyProviderSettings() error {
 	}
 
 	w.config.SetCurrentProvider(provider)
+	w.refreshOperationProviderOptions()
 	return nil
 }
 
