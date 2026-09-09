@@ -67,20 +67,27 @@ func (w *MainWindow) speechHeader() fyne.CanvasObject {
 }
 
 func (w *MainWindow) localSpeechPane() *fyne.Container {
+	catalog := stt.Models()
+	store := w.speechStore()
+	active := widget.NewLabel(activeModelText(w.config.Speech.ModelID, catalog.Models, store.Downloaded))
+	active.TextStyle.Bold = true
+
 	w.speechModels = NewModelList(w.speechStore(), w.Window, w.config.Speech.ModelID,
 		func(model stt.Model) {
 			w.config.Speech.ModelID = model.ID
+			active.SetText(activeModelText(model.ID, stt.Catalogue(), store.Downloaded))
 			w.statusBinding.Set("Speech model set to " + model.Name)
 		})
+	w.speechModels.SetActiveChanged(active.SetText)
 
-	catalog := stt.Models()
 	summary := widget.NewLabel(fmt.Sprintf("%d models", len(catalog.Models)))
 	summary.TextStyle.Italic = true
 
 	refresh := widget.NewButton("Check for new", w.refreshCatalog)
 
 	return container.NewBorder(
-		container.NewPadded(container.NewBorder(nil, nil, summary, refresh)),
+		container.NewPadded(container.NewBorder(nil, nil, summary,
+			container.NewHBox(active, refresh))),
 		nil, nil, nil,
 		w.speechModels,
 	)

@@ -19,11 +19,12 @@ import (
 type ModelList struct {
 	widget.BaseWidget
 
-	store    *stt.Store
-	host     stt.Machine
-	window   fyne.Window
-	selected string
-	onSelect func(stt.Model)
+	store           *stt.Store
+	host            stt.Machine
+	window          fyne.Window
+	selected        string
+	onSelect        func(stt.Model)
+	onActiveChanged func(string)
 
 	mu       sync.Mutex
 	filtered []stt.Model
@@ -33,7 +34,6 @@ type ModelList struct {
 	list   *widget.List
 	search *widget.Entry
 	filter *widget.Select
-	active *widget.Label
 }
 
 func NewModelList(store *stt.Store, window fyne.Window, selected string, onSelect func(stt.Model)) *ModelList {
@@ -60,9 +60,6 @@ func (m *ModelList) build() {
 	m.filter = widget.NewSelect(
 		[]string{"All", "Downloaded", "Recommended", "Multilingual", "English"}, nil)
 	m.filter.SetSelected("All")
-	m.active = widget.NewLabel("")
-	m.active.TextStyle.Bold = true
-	m.updateActiveLabel()
 
 	// Handlers are attached after the initial selection so neither fires before
 	// the list they refresh exists.
@@ -249,7 +246,9 @@ func summarise(model stt.Model, host stt.Machine) string {
 
 func (m *ModelList) choose(model stt.Model) {
 	m.selected = model.ID
-	m.updateActiveLabel()
+	if m.onActiveChanged != nil {
+		m.onActiveChanged(activeModelText(m.selected, stt.Catalogue(), m.store.Downloaded))
+	}
 	if m.onSelect != nil {
 		m.onSelect(model)
 	}
@@ -301,7 +300,9 @@ func (m *ModelList) confirmDelete(model stt.Model) {
 			}
 			if m.selected == model.ID {
 				m.selected = ""
-				m.updateActiveLabel()
+				if m.onActiveChanged != nil {
+					m.onActiveChanged(activeModelText(m.selected, stt.Catalogue(), m.store.Downloaded))
+				}
 			}
 			m.list.Refresh()
 		}, m.window)
@@ -313,20 +314,16 @@ func errorsIsCancelled(err error) bool {
 
 func (m *ModelList) CreateRenderer() fyne.WidgetRenderer {
 	header := container.NewBorder(nil, nil, nil, m.filter, m.search)
-	return widget.NewSimpleRenderer(container.NewBorder(
-		container.NewVBox(m.active, header), nil, nil, nil, m.list))
+	return widget.NewSimpleRenderer(container.NewBorder(header, nil, nil, nil, m.list))
 }
 
-func (m *ModelList) updateActiveLabel() {
-	if m.active == nil {
-		return
-	}
-	m.active.SetText(activeModelText(m.selected, stt.Catalogue()))
+func (m *ModelList) SetActiveChanged(callback func(string)) {
+	m.onActiveChanged = callback
 }
 
-func activeModelText(selected string, models []stt.Model) string {
+func activeModelText(selected string, models []stt.Model, downloaded func(stt.Model) bool) string {
 	for _, model := range models {
-		if model.ID == selected {
+		if model.ID == selected && downloaded != nil && downloaded(model) {
 			return "Active model: " + model.Name
 		}
 	}
