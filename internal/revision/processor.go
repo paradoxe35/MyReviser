@@ -9,12 +9,12 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/paradoxe35/scribe/internal/ai"
-	"github.com/paradoxe35/scribe/internal/config"
-	"github.com/paradoxe35/scribe/internal/input"
-	"github.com/paradoxe35/scribe/internal/language"
-	"github.com/paradoxe35/scribe/internal/logger"
-	"github.com/paradoxe35/scribe/internal/prompt"
+	"github.com/paradoxe35/encre/internal/ai"
+	"github.com/paradoxe35/encre/internal/config"
+	"github.com/paradoxe35/encre/internal/input"
+	"github.com/paradoxe35/encre/internal/language"
+	"github.com/paradoxe35/encre/internal/logger"
+	"github.com/paradoxe35/encre/internal/prompt"
 )
 
 // Processor runs the text actions: capture a selection, send it to a provider,

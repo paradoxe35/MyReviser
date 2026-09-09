@@ -9,12 +9,12 @@
 // activates this one and sends this message. Unanswered, the app comes forward with no window.
 static BOOL shouldHandleReopen(id self, SEL cmd, NSApplication *app, BOOL hasVisibleWindows) {
     if (!hasVisibleWindows) {
-        scribeHandleReopen();
+        encreHandleReopen();
     }
     return YES;
 }
 
-void ScribeInstallReopenHandler(void) {
+void EncreInstallReopenHandler(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         id delegate = [NSApp delegate];
         if (delegate == nil) {

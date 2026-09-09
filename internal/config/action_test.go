@@ -3,7 +3,7 @@ package config
 import (
 	"testing"
 
-	"github.com/paradoxe35/scribe/internal/prompt"
+	"github.com/paradoxe35/encre/internal/prompt"
 )
 
 func TestDefaultActionsCoverEveryKind(t *testing.T) {

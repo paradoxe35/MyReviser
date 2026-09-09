@@ -15,7 +15,7 @@ const (
 	titleBarHeight = 34
 )
 
-// newChromelessWindow prefers a borderless window so Scribe draws its own title
+// newChromelessWindow prefers a borderless window so Encre draws its own title
 // bar. Fyne only exposes that through the desktop driver's splash window, and
 // only at creation time, so a driver without it falls back to native chrome.
 func newChromelessWindow(app fyne.App, title string) fyne.Window {
@@ -30,7 +30,7 @@ func newChromelessWindow(app fyne.App, title string) fyne.Window {
 // chrome wraps content in a custom title bar. Closing hides to the tray, which
 // is what the close intercept does for a native title bar too.
 func (w *MainWindow) chrome(content fyne.CanvasObject) fyne.CanvasObject {
-	title := widget.NewLabelWithStyle("Scribe", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	title := widget.NewLabelWithStyle("Encre", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
 	closeButton := widget.NewButtonWithIcon("", theme.CancelIcon(), w.HideWindow)
 	closeButton.Importance = widget.LowImportance

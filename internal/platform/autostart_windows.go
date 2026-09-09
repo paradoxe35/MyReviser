@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/paradoxe35/scribe/internal/logger"
+	"github.com/paradoxe35/encre/internal/logger"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -15,7 +15,7 @@ type autoStart struct{}
 
 const (
 	registryKey  = `Software\Microsoft\Windows\CurrentVersion\Run`
-	registryName = "Scribe"
+	registryName = "Encre"
 )
 
 // Enable adds the application to Windows startup registry

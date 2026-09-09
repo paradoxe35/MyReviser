@@ -9,12 +9,12 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/systray"
-	"github.com/paradoxe35/scribe/internal/config"
-	"github.com/paradoxe35/scribe/internal/input"
-	"github.com/paradoxe35/scribe/internal/logger"
-	"github.com/paradoxe35/scribe/internal/permissions"
-	"github.com/paradoxe35/scribe/internal/revision"
-	"github.com/paradoxe35/scribe/ui"
+	"github.com/paradoxe35/encre/internal/config"
+	"github.com/paradoxe35/encre/internal/input"
+	"github.com/paradoxe35/encre/internal/logger"
+	"github.com/paradoxe35/encre/internal/permissions"
+	"github.com/paradoxe35/encre/internal/revision"
+	"github.com/paradoxe35/encre/ui"
 )
 
 // Application represents the main application
@@ -93,7 +93,7 @@ func NewApplication(app fyne.App, cfg *config.Config) (*Application, error) {
 
 	// Set tray tooltip
 	app.Lifecycle().SetOnStarted(func() {
-		systray.SetTooltip("Scribe - AI Text Revision Tool")
+		systray.SetTooltip("Encre - AI Text Revision Tool")
 		installReopenHandler(application.ShowWindow)
 	})
 

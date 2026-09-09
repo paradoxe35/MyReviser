@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/paradoxe35/scribe/internal/logger"
+	"github.com/paradoxe35/encre/internal/logger"
 )
 
 // RestartApplication restarts the application using platform-specific methods

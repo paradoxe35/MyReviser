@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/paradoxe35/scribe/internal/config"
+	"github.com/paradoxe35/encre/internal/config"
 )
 
 type CustomProvider struct {

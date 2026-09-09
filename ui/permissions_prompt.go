@@ -5,7 +5,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/paradoxe35/scribe/internal/permissions"
+	"github.com/paradoxe35/encre/internal/permissions"
 )
 
 type permissionPrompt struct {
@@ -22,7 +22,7 @@ type permissionPrompt struct {
 func newPermissionPrompt() *permissionPrompt {
 	title := widget.NewLabelWithStyle("Permissions Required", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
-	info := widget.NewLabel("Scribe needs the following permissions to function properly.")
+	info := widget.NewLabel("Encre needs the following permissions to function properly.")
 	info.Wrapping = fyne.TextWrapWord
 
 	accessibilityButton := newPermissionButton("Grant Access", func() {
@@ -31,7 +31,7 @@ func newPermissionPrompt() *permissionPrompt {
 
 	accessibilitySection := buildPermissionRow(
 		"Accessibility",
-		"Required to automate keyboard input and clipboard operations. If Scribe is not in the list, add it with +.",
+		"Required to automate keyboard input and clipboard operations. If Encre is not in the list, add it with +.",
 		accessibilityButton,
 	)
 
@@ -108,7 +108,7 @@ func (p *permissionPrompt) update(state permissions.State, showRestart bool) {
 
 	switch {
 	case hasPending:
-		p.infoLabel.SetText("Scribe needs the following permissions to function properly.")
+		p.infoLabel.SetText("Encre needs the following permissions to function properly.")
 		p.dividerAboveList.Show()
 		p.dividerBelowList.Hide()
 		p.restartRow.Hide()

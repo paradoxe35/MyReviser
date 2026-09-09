@@ -1,13 +1,13 @@
 [package]
-name = "scribe-ffi"
+name = "encre-ffi"
 version = "0.1.0"
 edition = "2024"
-authors = ["Scribe Team"]
-description = "Rust FFI library for Scribe system input functionality"
+authors = ["Encre Team"]
+description = "Rust FFI library for Encre system input functionality"
 license = "MIT"
 
 [lib]
-name = "scribe_ffi"
+name = "encre_ffi"
 crate-type = ["staticlib"]  # Static library for Go CGO
 
 [dependencies]

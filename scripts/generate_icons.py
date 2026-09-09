@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Scribe's icon set: a pen nib on a flat rounded tile."""
+"""Generate Encre's icon set: a pen nib on a flat rounded tile."""
 
 import os
 

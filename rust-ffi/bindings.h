@@ -1,5 +1,5 @@
-#ifndef SCRIBE_FFI_H
-#define SCRIBE_FFI_H
+#ifndef ENCRE_FFI_H
+#define ENCRE_FFI_H
 
 #pragma once
 
@@ -12,95 +12,95 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef void *scribe_ClipboardHandle;
+typedef void *encre_ClipboardHandle;
 
 /**
  * Opaque pointer types for safe cross-FFI boundary object passing
  */
-typedef void *scribe_HotkeyManagerHandle;
+typedef void *encre_HotkeyManagerHandle;
 
 /**
  * Receives the action string the binding was registered with.
  */
-typedef void (*scribe_HotkeyCallback)(const char*);
+typedef void (*encre_HotkeyCallback)(const char*);
 
-typedef void *scribe_SimulatorHandle;
+typedef void *encre_SimulatorHandle;
 
-#if defined(SCRIBE_MACOS)
+#if defined(ENCRE_MACOS)
 extern bool CGEventSourceKeyState(int32_t state_id, uint16_t key);
 #endif
 
 /**
  * Get the last error message
- * Returns: C string (must be freed with scribe_free_string) or NULL if no error
+ * Returns: C string (must be freed with encre_free_string) or NULL if no error
  */
-const char *scribe_get_last_error(void);
+const char *encre_get_last_error(void);
 
 /**
  * Free a string allocated by Rust
  * This must be called for all strings returned by Rust functions
  */
-void scribe_free_string(char *s);
+void encre_free_string(char *s);
 
-scribe_ClipboardHandle scribe_clipboard_new(void);
+encre_ClipboardHandle encre_clipboard_new(void);
 
 /**
  * Null when the clipboard holds no text, including when it holds an image.
  */
-char *scribe_clipboard_get_text(scribe_ClipboardHandle handle);
+char *encre_clipboard_get_text(encre_ClipboardHandle handle);
 
 /**
  * 1 when the clipboard holds text, 0 when not. Distinguishes "copied a picture" from
  * "the copy never landed", which look identical through `get_text`.
  */
-int scribe_clipboard_has_text(scribe_ClipboardHandle handle);
+int encre_clipboard_has_text(encre_ClipboardHandle handle);
 
-int scribe_clipboard_set_text(scribe_ClipboardHandle handle, const char *text);
+int encre_clipboard_set_text(encre_ClipboardHandle handle, const char *text);
 
 /**
  * Empties the clipboard, so a following simulated copy landing becomes observable.
  */
-int scribe_clipboard_clear(scribe_ClipboardHandle handle);
+int encre_clipboard_clear(encre_ClipboardHandle handle);
 
-int scribe_clipboard_save(scribe_ClipboardHandle handle);
+int encre_clipboard_save(encre_ClipboardHandle handle);
 
-int scribe_clipboard_restore(scribe_ClipboardHandle handle);
+int encre_clipboard_restore(encre_ClipboardHandle handle);
 
-void scribe_clipboard_free(scribe_ClipboardHandle handle);
+void encre_clipboard_free(encre_ClipboardHandle handle);
 
-scribe_HotkeyManagerHandle scribe_hotkey_manager_new(void);
+encre_HotkeyManagerHandle encre_hotkey_manager_new(void);
 
-int scribe_hotkey_clear(scribe_HotkeyManagerHandle handle);
+int encre_hotkey_clear(encre_HotkeyManagerHandle handle);
 
-int scribe_hotkey_register(scribe_HotkeyManagerHandle handle,
-                           const char *binding,
-                           const char *action,
-                           scribe_HotkeyCallback callback);
+int encre_hotkey_register(encre_HotkeyManagerHandle handle,
+                          const char *binding,
+                          const char *action,
+                          encre_HotkeyCallback callback);
 
-int scribe_hotkey_start(scribe_HotkeyManagerHandle handle);
+int encre_hotkey_start(encre_HotkeyManagerHandle handle);
 
-int scribe_hotkey_stop(scribe_HotkeyManagerHandle handle);
+int encre_hotkey_stop(encre_HotkeyManagerHandle handle);
 
 /**
- * Null when the listener is running. The caller frees the string with `scribe_free_string`.
+ * Null when the listener is running. The caller frees the string with `encre_free_string`.
  */
-char *scribe_hotkey_listen_error(scribe_HotkeyManagerHandle handle);
+char *encre_hotkey_listen_error(encre_HotkeyManagerHandle handle);
 
-void scribe_hotkey_manager_free(scribe_HotkeyManagerHandle handle);
+void encre_hotkey_manager_free(encre_HotkeyManagerHandle handle);
 
-scribe_SimulatorHandle scribe_simulator_new(void);
+encre_SimulatorHandle encre_simulator_new(void);
 
-int scribe_simulate_select_all(scribe_SimulatorHandle handle);
+int encre_simulate_select_all(encre_SimulatorHandle handle);
 
-int scribe_simulate_copy(scribe_SimulatorHandle handle);
+int encre_simulate_copy(encre_SimulatorHandle handle);
 
-int scribe_simulate_paste(scribe_SimulatorHandle handle);
+int encre_simulate_paste(encre_SimulatorHandle handle);
 
 /**
  * Releases modifiers still held from the triggering hotkey. Call once before any combo.
  */
-int scribe_simulate_release_modifiers(scribe_SimulatorHandle handle);
+int encre_simulate_release_modifiers(encre_SimulatorHandle handle);
 
-void scribe_simulator_free(scribe_SimulatorHandle handle);
+void encre_simulator_free(encre_SimulatorHandle handle);
 
-#endif  /* SCRIBE_FFI_H */
+#endif  /* ENCRE_FFI_H */

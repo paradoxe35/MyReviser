@@ -67,7 +67,7 @@ pub unsafe fn c_str_to_string(c_str: *const c_char) -> Result<String, &'static s
         .map_err(|_| "Invalid UTF-8 in C string")
 }}
 
-/// Helper: Convert Rust String to C string (caller must free with scribe_free_string)
+/// Helper: Convert Rust String to C string (caller must free with encre_free_string)
 pub fn string_to_c_str(s: String) -> *mut c_char {
     match CString::new(s) {
         Ok(c_string) => c_string.into_raw(),

@@ -17,7 +17,7 @@ fn main() {
             .with_crate(&crate_dir)
             .with_language(cbindgen::Language::C)
             .with_pragma_once(true)
-            .with_include_guard("SCRIBE_FFI_H")
+            .with_include_guard("ENCRE_FFI_H")
             .with_documentation(true)
             .with_sys_include("stdint.h")
             .with_sys_include("stdbool.h")

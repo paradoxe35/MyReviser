@@ -8,9 +8,9 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/paradoxe35/scribe/internal/logger"
-	"github.com/paradoxe35/scribe/internal/platform"
-	"github.com/paradoxe35/scribe/internal/version"
+	"github.com/paradoxe35/encre/internal/logger"
+	"github.com/paradoxe35/encre/internal/platform"
+	"github.com/paradoxe35/encre/internal/version"
 )
 
 func (w *MainWindow) createSystemSection() fyne.CanvasObject {

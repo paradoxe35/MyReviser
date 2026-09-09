@@ -1,4 +1,4 @@
-module github.com/paradoxe35/scribe
+module github.com/paradoxe35/encre
 
 go 1.26.0
 

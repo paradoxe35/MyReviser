@@ -1,6 +1,6 @@
-#ifndef SCRIBE_REOPEN_H
-#define SCRIBE_REOPEN_H
+#ifndef ENCRE_REOPEN_H
+#define ENCRE_REOPEN_H
 
-void ScribeInstallReopenHandler(void);
+void EncreInstallReopenHandler(void);
 
 #endif

@@ -4,7 +4,7 @@ use super::ffi_types::*;
 use crate::core::KeySimulator;
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_simulator_new() -> SimulatorHandle {
+pub unsafe extern "C" fn encre_simulator_new() -> SimulatorHandle {
     init_logging();
 
     match KeySimulator::new() {
@@ -17,7 +17,7 @@ pub unsafe extern "C" fn scribe_simulator_new() -> SimulatorHandle {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_simulate_select_all(handle: SimulatorHandle) -> c_int { unsafe {
+pub unsafe extern "C" fn encre_simulate_select_all(handle: SimulatorHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null simulator handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -35,7 +35,7 @@ pub unsafe extern "C" fn scribe_simulate_select_all(handle: SimulatorHandle) -> 
 }}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_simulate_copy(handle: SimulatorHandle) -> c_int { unsafe {
+pub unsafe extern "C" fn encre_simulate_copy(handle: SimulatorHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null simulator handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -53,7 +53,7 @@ pub unsafe extern "C" fn scribe_simulate_copy(handle: SimulatorHandle) -> c_int 
 }}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_simulate_paste(handle: SimulatorHandle) -> c_int { unsafe {
+pub unsafe extern "C" fn encre_simulate_paste(handle: SimulatorHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null simulator handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -72,7 +72,7 @@ pub unsafe extern "C" fn scribe_simulate_paste(handle: SimulatorHandle) -> c_int
 
 /// Releases modifiers still held from the triggering hotkey. Call once before any combo.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_simulate_release_modifiers(handle: SimulatorHandle) -> c_int { unsafe {
+pub unsafe extern "C" fn encre_simulate_release_modifiers(handle: SimulatorHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null simulator handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -90,7 +90,7 @@ pub unsafe extern "C" fn scribe_simulate_release_modifiers(handle: SimulatorHand
 }}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_simulator_free(handle: SimulatorHandle) { unsafe {
+pub unsafe extern "C" fn encre_simulator_free(handle: SimulatorHandle) { unsafe {
     if !handle.is_null() {
         let _ = Box::from_raw(handle as *mut KeySimulator);
     }

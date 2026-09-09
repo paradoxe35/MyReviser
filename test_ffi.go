@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/paradoxe35/scribe/internal/input"
+	"github.com/paradoxe35/encre/internal/input"
 )
 
 func main() {

@@ -11,8 +11,8 @@ import (
 	"unicode"
 
 	locale "github.com/jeandeaual/go-locale"
-	"github.com/paradoxe35/scribe/internal/language"
-	"github.com/paradoxe35/scribe/internal/utils"
+	"github.com/paradoxe35/encre/internal/language"
+	"github.com/paradoxe35/encre/internal/utils"
 )
 
 const (
@@ -85,7 +85,7 @@ var (
 	listenerMutex sync.RWMutex
 )
 
-const APP_ID = "me.pngwasi.scribe"
+const APP_ID = "me.pngwasi.encre"
 
 // ConfigPath returns the path to the configuration file
 func ConfigPath() string {

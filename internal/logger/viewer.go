@@ -19,10 +19,10 @@ func GetLatestLogFile() (string, error) {
 		return "", fmt.Errorf("failed to read log directory: %w", err)
 	}
 
-	// Filter log files matching pattern: scribe-YYYY-MM-DD.log
+	// Filter log files matching pattern: encre-YYYY-MM-DD.log
 	var logFiles []string
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasPrefix(entry.Name(), "scribe-") && strings.HasSuffix(entry.Name(), ".log") {
+		if !entry.IsDir() && strings.HasPrefix(entry.Name(), "encre-") && strings.HasSuffix(entry.Name(), ".log") {
 			logFiles = append(logFiles, entry.Name())
 		}
 	}

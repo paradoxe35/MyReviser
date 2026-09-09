@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-const appDirName = ".scribe"
+const appDirName = ".encre"
 
 func AppHomeDir(elem ...string) string {
 	homeDir, err := os.UserHomeDir()

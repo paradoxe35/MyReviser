@@ -3,7 +3,7 @@ package config
 import (
 	"runtime"
 
-	"github.com/paradoxe35/scribe/internal/prompt"
+	"github.com/paradoxe35/encre/internal/prompt"
 )
 
 type ActionKind string

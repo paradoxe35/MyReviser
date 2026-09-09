@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/paradoxe35/scribe/internal/config"
-	"github.com/paradoxe35/scribe/internal/logger"
+	"github.com/paradoxe35/encre/internal/config"
+	"github.com/paradoxe35/encre/internal/logger"
 )
 
 const statusErrorLimit = 60

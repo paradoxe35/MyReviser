@@ -7,7 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
-	"github.com/paradoxe35/scribe/internal/config"
+	"github.com/paradoxe35/encre/internal/config"
 )
 
 const providerDefaultOption = "Default"

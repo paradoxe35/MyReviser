@@ -8,11 +8,11 @@ import (
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/paradoxe35/scribe/internal/config"
-	"github.com/paradoxe35/scribe/internal/input"
-	"github.com/paradoxe35/scribe/internal/logger"
-	"github.com/paradoxe35/scribe/internal/permissions"
-	"github.com/paradoxe35/scribe/internal/platform"
+	"github.com/paradoxe35/encre/internal/config"
+	"github.com/paradoxe35/encre/internal/input"
+	"github.com/paradoxe35/encre/internal/logger"
+	"github.com/paradoxe35/encre/internal/permissions"
+	"github.com/paradoxe35/encre/internal/platform"
 )
 
 const (
@@ -63,7 +63,7 @@ type MainWindow struct {
 }
 
 func NewMainWindow(app fyne.App, cfg *config.Config, hotkeyManager *input.FFIHotkeyManager) *MainWindow {
-	window := newChromelessWindow(app, "Scribe")
+	window := newChromelessWindow(app, "Encre")
 	window.Resize(fyne.NewSize(windowWidth, windowHeight))
 	window.CenterOnScreen()
 	window.SetIcon(app.Icon())

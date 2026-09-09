@@ -11,9 +11,9 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/paradoxe35/scribe/internal/ai"
-	"github.com/paradoxe35/scribe/internal/config"
-	"github.com/paradoxe35/scribe/internal/logger"
+	"github.com/paradoxe35/encre/internal/ai"
+	"github.com/paradoxe35/encre/internal/config"
+	"github.com/paradoxe35/encre/internal/logger"
 )
 
 func (w *MainWindow) loadProviderSettings(provider string) {

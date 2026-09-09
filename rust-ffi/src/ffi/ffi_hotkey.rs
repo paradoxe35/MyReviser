@@ -302,7 +302,7 @@ impl ListenerState {
         // Once, and without naming the key: proof that key events reach us at all.
         if !self.delivery_announced {
             self.delivery_announced = true;
-            tracing::info!("The system is delivering key events to Scribe");
+            tracing::info!("The system is delivering key events to Encre");
         }
 
         let bindings = bindings.lock();
@@ -478,7 +478,7 @@ impl SimpleHotkeyManager {
                 if let Err(e) = listen(callback) {
                     *listen_error.lock() = Some(format!(
                         "The system refused the key listener ({:?}). On macOS this is Input \
-                         Monitoring; grant it to Scribe and restart.",
+                         Monitoring; grant it to Encre and restart.",
                         e
                     ));
                 }
@@ -501,7 +501,7 @@ impl SimpleHotkeyManager {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_hotkey_manager_new() -> HotkeyManagerHandle {
+pub unsafe extern "C" fn encre_hotkey_manager_new() -> HotkeyManagerHandle {
     init_logging();
 
     let manager = Box::new(SimpleHotkeyManager::new());
@@ -509,7 +509,7 @@ pub unsafe extern "C" fn scribe_hotkey_manager_new() -> HotkeyManagerHandle {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_hotkey_clear(handle: HotkeyManagerHandle) -> c_int { unsafe {
+pub unsafe extern "C" fn encre_hotkey_clear(handle: HotkeyManagerHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null hotkey manager handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -521,7 +521,7 @@ pub unsafe extern "C" fn scribe_hotkey_clear(handle: HotkeyManagerHandle) -> c_i
 }}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_hotkey_register(
+pub unsafe extern "C" fn encre_hotkey_register(
     handle: HotkeyManagerHandle,
     binding: *const c_char,
     action: *const c_char,
@@ -565,7 +565,7 @@ pub unsafe extern "C" fn scribe_hotkey_register(
 }}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_hotkey_start(handle: HotkeyManagerHandle) -> c_int { unsafe {
+pub unsafe extern "C" fn encre_hotkey_start(handle: HotkeyManagerHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null hotkey manager handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -583,7 +583,7 @@ pub unsafe extern "C" fn scribe_hotkey_start(handle: HotkeyManagerHandle) -> c_i
 }}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_hotkey_stop(handle: HotkeyManagerHandle) -> c_int { unsafe {
+pub unsafe extern "C" fn encre_hotkey_stop(handle: HotkeyManagerHandle) -> c_int { unsafe {
     if handle.is_null() {
         set_last_error("Null hotkey manager handle provided".to_string());
         return FFIErrorCode::NullPointer as c_int;
@@ -600,9 +600,9 @@ pub unsafe extern "C" fn scribe_hotkey_stop(handle: HotkeyManagerHandle) -> c_in
     }
 }}
 
-/// Null when the listener is running. The caller frees the string with `scribe_free_string`.
+/// Null when the listener is running. The caller frees the string with `encre_free_string`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_hotkey_listen_error(handle: HotkeyManagerHandle) -> *mut c_char { unsafe {
+pub unsafe extern "C" fn encre_hotkey_listen_error(handle: HotkeyManagerHandle) -> *mut c_char { unsafe {
     if handle.is_null() {
         return std::ptr::null_mut();
     }
@@ -615,7 +615,7 @@ pub unsafe extern "C" fn scribe_hotkey_listen_error(handle: HotkeyManagerHandle)
 }}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_hotkey_manager_free(handle: HotkeyManagerHandle) { unsafe {
+pub unsafe extern "C" fn encre_hotkey_manager_free(handle: HotkeyManagerHandle) { unsafe {
     if !handle.is_null() {
         let _ = Box::from_raw(handle as *mut SimpleHotkeyManager);
     }

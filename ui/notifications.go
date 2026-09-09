@@ -2,7 +2,7 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
-	"github.com/paradoxe35/scribe/internal/logger"
+	"github.com/paradoxe35/encre/internal/logger"
 )
 
 // NotificationManager handles user notifications

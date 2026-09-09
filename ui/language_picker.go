@@ -2,7 +2,7 @@ package ui
 
 import (
 	"fyne.io/fyne/v2/widget"
-	"github.com/paradoxe35/scribe/internal/language"
+	"github.com/paradoxe35/encre/internal/language"
 )
 
 const languageSuggestionLimit = 12

@@ -1,6 +1,6 @@
-// Scribe - AI-powered text revision tool
+// Encre - AI-powered text revision tool
 // Author: Paradoxe Ng <contact@pngwasi.me>
-// Repository: https://github.com/paradoxe35/scribe
+// Repository: https://github.com/paradoxe35/encre
 
 package main
 
@@ -10,11 +10,11 @@ import (
 
 	"fyne.io/fyne/v2/app"
 	singleinstance "github.com/allan-simon/go-singleinstance"
-	"github.com/paradoxe35/scribe/internal/config"
-	"github.com/paradoxe35/scribe/internal/logger"
-	"github.com/paradoxe35/scribe/internal/platform"
-	"github.com/paradoxe35/scribe/internal/utils"
-	"github.com/paradoxe35/scribe/internal/version"
+	"github.com/paradoxe35/encre/internal/config"
+	"github.com/paradoxe35/encre/internal/logger"
+	"github.com/paradoxe35/encre/internal/platform"
+	"github.com/paradoxe35/encre/internal/utils"
+	"github.com/paradoxe35/encre/internal/version"
 )
 
 func main() {
@@ -23,16 +23,16 @@ func main() {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 
-	// Ensure ~/.scribe created
+	// Ensure ~/.encre created
 	utils.EnsureAppHomeDir()
 
 	// Check for single instance
-	lockPath := utils.AppHomeDir("scribe.lock")
+	lockPath := utils.AppHomeDir("encre.lock")
 	portPath := utils.AppHomeDir("instance.port")
 	lockFile, err := singleinstance.CreateLockFile(lockPath)
 	if err != nil {
 		if platform.Notify(portPath) {
-			logger.Info("Handed this launch to the Scribe already running")
+			logger.Info("Handed this launch to the Encre already running")
 			return
 		}
 		logger.Error("Another instance is already running", "error", err)
@@ -54,7 +54,7 @@ func main() {
 	myApp := app.NewWithID(config.APP_ID)
 	myApp.SetIcon(resourceIconPng)
 
-	logger.Info("Scribe starting",
+	logger.Info("Encre starting",
 		"version", version.GetVersion(myApp),
 		"build", version.GetBuildNumber(myApp))
 
