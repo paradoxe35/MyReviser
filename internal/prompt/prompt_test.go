@@ -38,14 +38,27 @@ func TestRenderTranslateHandlesOneSidedTemplate(t *testing.T) {
 	}
 }
 
-func TestBuiltInPromptsForbidPreamble(t *testing.T) {
+// The shipped revise prompt is pinned. It was silently replaced once during a
+// refactor, which changes behaviour for everyone who never edited it.
+func TestReviseIsTheShippedPrompt(t *testing.T) {
+	const shipped = "You are a multilingual text enhancer: fix errors, improve clarity and quality " +
+		"while preserving tone, context, and intent in the original language. " +
+		"Return only the enhanced version without additional text."
+
+	if Revise != shipped {
+		t.Errorf("the default revise prompt changed.\n got: %q\nwant: %q", Revise, shipped)
+	}
+}
+
+func TestBuiltInPromptsConstrainOutput(t *testing.T) {
 	for name, text := range map[string]string{
 		"Revise":    Revise,
 		"Translate": Translate,
 		"Dictate":   Dictate,
 	} {
-		if !strings.Contains(text, "No preamble") {
-			t.Errorf("%s prompt does not forbid a preamble", name)
+		lower := strings.ToLower(text)
+		if !strings.Contains(lower, "only") {
+			t.Errorf("%s prompt does not restrict the model to the result alone", name)
 		}
 	}
 }

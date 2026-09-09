@@ -73,7 +73,7 @@ func (w *MainWindow) createSystemSection() fyne.CanvasObject {
 
 	form := container.NewVBox(formItems...)
 
-	return container.NewScroll(form)
+	return container.NewVScroll(form)
 }
 func (w *MainWindow) applyTheme(themeName string) {
 	switch themeName {

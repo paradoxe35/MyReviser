@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"strconv"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -12,12 +13,9 @@ import (
 
 const providerDefaultOption = "Default"
 
-// actionEditor holds the widgets for one action so save and reset can reach
-// them without the window carrying a field per action.
-type actionEditor struct {
-	kind     config.ActionKind
-	enabled  *widget.Check
-	capture  *HotkeyCapture
+// operationEditor holds what an operation does. Which keys trigger it lives
+// under Hotkeys.
+type operationEditor struct {
 	prompt   *widget.Entry
 	limit    *widget.Entry
 	timeout  *widget.Slider
@@ -25,22 +23,16 @@ type actionEditor struct {
 }
 
 func (w *MainWindow) createActionsSection() fyne.CanvasObject {
-	w.actionEditors = make(map[config.ActionKind]*actionEditor, len(config.ActionOrder))
+	w.operationEditors = make(map[config.Operation]*operationEditor, len(config.OperationOrder))
 
-	items := make([]*widget.AccordionItem, 0, len(config.ActionOrder))
-	captures := make([]*HotkeyCapture, 0, len(config.ActionOrder))
-
-	for _, kind := range config.ActionOrder {
-		editor := w.newActionEditor(kind)
-		w.actionEditors[kind] = editor
-		captures = append(captures, editor.capture)
-		items = append(items, widget.NewAccordionItem(kind.Label(), editor.content(kind)))
-	}
-
-	// Every capture must know every other, so only one records at a time and
-	// duplicate bindings are rejected.
-	for _, capture := range captures {
-		capture.SetSiblings(others(captures, capture)...)
+	items := make([]*widget.AccordionItem, 0, len(config.OperationOrder))
+	for _, op := range config.OperationOrder {
+		if !op.UsesAI() {
+			continue
+		}
+		editor := w.newOperationEditor(op)
+		w.operationEditors[op] = editor
+		items = append(items, widget.NewAccordionItem(op.Label(), editor.content(w, op)))
 	}
 
 	accordion := widget.NewAccordion(items...)
@@ -50,123 +42,74 @@ func (w *MainWindow) createActionsSection() fyne.CanvasObject {
 	w.mentionsCheck.SetChecked(w.config.EnableProviderMentions)
 
 	mentionsHelp := widget.NewLabel(
-		"Start a selection with @provider to run that one action on it, e.g. \"@claude Fix this\".")
+		"Start a selection with @provider to run that one action on it, " +
+			"for example \"@claude Fix this\".")
 	mentionsHelp.Wrapping = fyne.TextWrapWord
 	mentionsHelp.TextStyle = fyne.TextStyle{Italic: true}
 
-	help := widget.NewLabel(
-		"• Click 'Capture', press keys one at a time, then Enter to save\n" +
-			"• Requires at least one modifier (Ctrl/Alt/Shift/Super)\n" +
-			"• Press ESC to cancel")
-	help.Wrapping = fyne.TextWrapWord
-
-	reset := widget.NewButton("Reset shortcuts to defaults", func() {
-		defaults := config.DefaultActions()
-		for kind, editor := range w.actionEditors {
-			editor.capture.StopCapture()
-			w.hotkeyBindings[kind].Set(defaults[kind].Hotkey)
-			editor.capture.UpdateFromBinding()
-		}
-	})
-
-	return container.NewScroll(container.NewVBox(
+	return container.NewVScroll(container.NewVBox(
 		accordion,
 		widget.NewSeparator(),
-		container.NewPadded(container.NewVBox(
-			w.mentionsCheck,
-			mentionsHelp,
-			widget.NewAccordion(widget.NewAccordionItem("How to capture shortcuts", help)),
-			reset,
-		)),
+		container.NewPadded(container.NewVBox(w.mentionsCheck, mentionsHelp)),
 	))
 }
 
-func others(all []*HotkeyCapture, self *HotkeyCapture) []*HotkeyCapture {
-	rest := make([]*HotkeyCapture, 0, len(all)-1)
-	for _, capture := range all {
-		if capture != self {
-			rest = append(rest, capture)
-		}
-	}
-	return rest
-}
+func (w *MainWindow) newOperationEditor(op config.Operation) *operationEditor {
+	operation := w.config.Operation(op)
 
-func (w *MainWindow) newActionEditor(kind config.ActionKind) *actionEditor {
-	action := w.config.Action(kind)
-
-	capture := NewHotkeyCapture(w.hotkeyBindings[kind], "Click 'Capture' to set shortcut")
-	capture.window = w.Window
-	capture.SetAllowModifierOnly(true)
-	capture.onCaptureStart = func() {
-		if w.hotkeyManager != nil {
-			w.hotkeyManager.Disable()
-		}
-	}
-	capture.onCaptureStop = func() {
-		if w.hotkeyManager != nil {
-			w.hotkeyManager.Enable()
-		}
+	editor := &operationEditor{
+		prompt:   widget.NewMultiLineEntry(),
+		limit:    widget.NewEntry(),
+		timeout:  widget.NewSlider(5, 300),
+		provider: widget.NewSelect(w.providerOptions(), nil),
 	}
 
-	editor := &actionEditor{
-		kind:    kind,
-		enabled: widget.NewCheck("Enabled", nil),
-		capture: capture,
-	}
-	editor.enabled.SetChecked(action.Enabled)
-
-	if !kind.UsesAI() {
-		return editor
-	}
-
-	editor.prompt = widget.NewMultiLineEntry()
-	editor.prompt.SetText(action.SystemPrompt)
-	editor.prompt.SetPlaceHolder("Leave empty to use the built-in prompt")
+	editor.prompt.SetText(operation.SystemPrompt)
+	// Show the built-in prompt greyed out rather than hiding it behind an empty
+	// field: it is what actually runs, and people edit from it.
+	editor.prompt.SetPlaceHolder(config.DefaultPrompt(op))
 	editor.prompt.Wrapping = fyne.TextWrapWord
-	editor.prompt.SetMinRowsVisible(6)
+	editor.prompt.SetMinRowsVisible(5)
 
-	editor.limit = widget.NewEntry()
-	editor.limit.SetText(strconv.Itoa(action.CharacterLimit))
-	editor.limit.Validator = func(value string) error {
-		return validateCharacterLimit(value)
-	}
+	editor.limit.SetText(strconv.Itoa(operation.CharacterLimit))
+	editor.limit.Validator = validateCharacterLimit
 
-	editor.timeout = widget.NewSlider(15, 300)
 	editor.timeout.Step = 5
-	editor.timeout.SetValue(float64(action.TimeoutSeconds))
+	editor.timeout.SetValue(float64(operation.TimeoutSeconds))
 
-	editor.provider = widget.NewSelect(w.providerOptions(), nil)
-	editor.provider.SetSelected(providerLabel(action.ProviderID))
-
+	editor.provider.SetSelected(providerLabel(operation.ProviderID))
 	return editor
 }
 
-func (e *actionEditor) content(kind config.ActionKind) fyne.CanvasObject {
-	rows := []fyne.CanvasObject{e.enabled, e.capture}
+func (e *operationEditor) content(w *MainWindow, op config.Operation) fyne.CanvasObject {
+	timeoutValue := widget.NewLabel("")
+	syncTimeoutLabel(timeoutValue, e.timeout.Value)
+	e.timeout.OnChanged = func(value float64) { syncTimeoutLabel(timeoutValue, value) }
 
-	if e.prompt != nil {
-		timeoutValue := widget.NewLabel("")
-		syncTimeoutLabel(timeoutValue, e.timeout.Value)
-		e.timeout.OnChanged = func(value float64) { syncTimeoutLabel(timeoutValue, value) }
-
-		reset := widget.NewButton("Reset prompt", func() { e.prompt.SetText("") })
-
-		rows = append(rows,
-			widget.NewSeparator(),
-			widget.NewForm(
-				widget.NewFormItem("Provider", e.provider),
-				widget.NewFormItem("Character limit", e.limit),
-				widget.NewFormItem("Timeout", container.NewBorder(nil, nil, nil, timeoutValue, e.timeout)),
-			),
-			widget.NewLabel("System prompt"),
-			e.prompt,
-			reset,
-		)
+	rows := []fyne.CanvasObject{
+		boundBy(op),
+		widget.NewForm(
+			widget.NewFormItem("Provider", e.provider),
+			widget.NewFormItem("Character limit", e.limit),
+			widget.NewFormItem("Timeout", container.NewBorder(nil, nil, nil, timeoutValue, e.timeout)),
+		),
 	}
 
-	if kind == config.ActionDictate {
-		rows = append(rows, widget.NewLabel("Speech-to-text is not available yet."))
+	// The language pair is a translate setting, so it belongs with the action
+	// rather than in a screen of its own.
+	if op == config.OpTranslate {
+		rows = append(rows, widget.NewSeparator(), w.translateLanguages())
 	}
+
+	rows = append(rows,
+		widget.NewSeparator(),
+		widget.NewLabel("System prompt"),
+		e.prompt,
+		container.NewHBox(
+			widget.NewButton("Use built-in", func() { e.prompt.SetText("") }),
+			widget.NewButton("Edit a copy", func() { e.prompt.SetText(config.DefaultPrompt(op)) }),
+		),
+	)
 
 	return container.NewPadded(container.NewVBox(rows...))
 }
@@ -176,8 +119,7 @@ func syncTimeoutLabel(label *widget.Label, value float64) {
 }
 
 func (w *MainWindow) providerOptions() []string {
-	names := w.config.GetAllProviderNames()
-	return append([]string{providerDefaultOption}, names...)
+	return append([]string{providerDefaultOption}, w.config.GetAllProviderNames()...)
 }
 
 func providerLabel(id string) string {
@@ -202,8 +144,26 @@ func validateCharacterLimit(value string) error {
 	if err != nil {
 		return errors.New("must be a number")
 	}
-	if limit < 100 || limit > 20000 {
-		return errors.New("must be between 100 and 20000")
+	// main only checked that it parsed. An upper bound catches a typo; a high
+	// floor would make an existing smaller limit unsavable.
+	if limit < 1 || limit > 100000 {
+		return errors.New("must be between 1 and 100000")
 	}
 	return nil
+}
+
+// boundBy names the shortcuts an operation answers to, so it is obvious that
+// "Revise selection" and "Revise everything" share these settings.
+func boundBy(op config.Operation) fyne.CanvasObject {
+	var names []string
+	for _, kind := range config.ActionOrder {
+		if kind.Operation() == op {
+			names = append(names, kind.Label())
+		}
+	}
+
+	label := widget.NewLabel("Used by " + strings.Join(names, " and "))
+	label.Wrapping = fyne.TextWrapWord
+	label.TextStyle = fyne.TextStyle{Italic: true}
+	return label
 }

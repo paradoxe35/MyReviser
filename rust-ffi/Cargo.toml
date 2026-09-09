@@ -38,6 +38,14 @@ parking_lot = "0.12"
 # FFI-specific
 libc = "0.2"
 
+# Speech to text: GGUF/ggml engine, capture, resampling and voice detection.
+# Model support is not feature-gated; the architecture is read from the file.
+transcribe-cpp = { version = "0.2.3", default-features = false }
+cpal = "0.18"
+rubato = "0.16"
+earshot = "1.2"
+hound = "3.5"
+
 [build-dependencies]
 cbindgen = "0.29"
 

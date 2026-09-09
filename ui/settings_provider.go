@@ -311,7 +311,7 @@ func (w *MainWindow) showAddCustomProviderDialog() {
 		errorLabel,
 	)
 
-	scrollContainer := container.NewScroll(form)
+	scrollContainer := container.NewVScroll(form)
 	scrollContainer.SetMinSize(fyne.NewSize(400, 350))
 
 	var d dialog.Dialog

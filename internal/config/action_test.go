@@ -1,6 +1,7 @@
 package config
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/paradoxe35/encre/internal/prompt"
@@ -17,9 +18,6 @@ func TestDefaultActionsCoverEveryKind(t *testing.T) {
 		if action.Hotkey == "" {
 			t.Errorf("%s has no default hotkey", kind)
 		}
-		if action.CharacterLimit == 0 || action.TimeoutSeconds == 0 {
-			t.Errorf("%s has zero limit or timeout", kind)
-		}
 	}
 }
 
@@ -33,44 +31,73 @@ func TestDefaultHotkeysAreUnique(t *testing.T) {
 	}
 }
 
-func TestDictateDefaultsToPushToTalkAndDisabled(t *testing.T) {
-	dictate := DefaultActions()[ActionDictate]
-
-	if dictate.Enabled {
-		t.Error("dictate should be off until speech-to-text ships")
-	}
-	if !dictate.PushToTalk {
-		t.Error("dictate should default to push-to-talk")
+func TestEveryActionIsEnabledByDefault(t *testing.T) {
+	for kind, action := range DefaultActions() {
+		if !action.Enabled {
+			t.Errorf("%s is disabled by default; an unexplained empty checkbox is\n"+
+				"worse than a shortcut that reports what is missing", kind)
+		}
 	}
 }
 
-func TestPromptOrDefaultFallsBackPerKind(t *testing.T) {
-	blank := ActionConfig{}
+func TestDictateDefaultsToPushToTalk(t *testing.T) {
+	if !DefaultActions()[ActionDictate].PushToTalk {
+		t.Error("dictate should default to hold-to-record")
+	}
+}
 
-	if got := blank.PromptOrDefault(ActionTranslate); got != prompt.Translate {
+func TestPromptOrDefaultFallsBackPerOperation(t *testing.T) {
+	blank := OperationConfig{}
+
+	if got := blank.PromptOrDefault(OpTranslate); got != prompt.Translate {
 		t.Error("translate did not fall back to the translate prompt")
 	}
-	if got := blank.PromptOrDefault(ActionReviseSelection); got != prompt.Revise {
+	if got := blank.PromptOrDefault(OpRevise); got != prompt.Revise {
 		t.Error("revise did not fall back to the revise prompt")
 	}
 
-	custom := ActionConfig{SystemPrompt: "mine"}
-	if got := custom.PromptOrDefault(ActionTranslate); got != "mine" {
+	custom := OperationConfig{SystemPrompt: "mine"}
+	if got := custom.PromptOrDefault(OpTranslate); got != "mine" {
 		t.Errorf("PromptOrDefault overrode a custom prompt with %q", got)
 	}
 }
 
-func TestActionFillsZeroedLimits(t *testing.T) {
-	cfg := &Config{Actions: map[ActionKind]ActionConfig{
-		ActionTranslate: {Hotkey: "ctrl+alt+g"},
-	}}
-
-	action := cfg.Action(ActionTranslate)
-	if action.CharacterLimit != DefaultCharacterLimit {
-		t.Errorf("CharacterLimit = %d, want %d", action.CharacterLimit, DefaultCharacterLimit)
+// Both revise shortcuts must resolve to one set of settings, or editing the
+// prompt in one place would leave the other stale.
+func TestBothReviseBindingsShareOneOperation(t *testing.T) {
+	if ActionReviseSelection.Operation() != OpRevise {
+		t.Error("revise_selection should map to the revise operation")
 	}
-	if action.TimeoutSeconds != DefaultTimeoutSeconds {
-		t.Errorf("TimeoutSeconds = %d, want %d", action.TimeoutSeconds, DefaultTimeoutSeconds)
+	if ActionReviseAll.Operation() != OpRevise {
+		t.Error("revise_all should map to the revise operation")
+	}
+	if ActionTranslate.Operation() == ActionReviseAll.Operation() {
+		t.Error("translate must not share the revise operation")
+	}
+}
+
+func TestEditingReviseAffectsBothBindings(t *testing.T) {
+	cfg := &Config{}
+	cfg.applyDefaults()
+	cfg.SetOperation(OpRevise, OperationConfig{SystemPrompt: "shared", CharacterLimit: 500})
+
+	for _, kind := range []ActionKind{ActionReviseSelection, ActionReviseAll} {
+		got := cfg.Operation(kind.Operation())
+		if got.SystemPrompt != "shared" || got.CharacterLimit != 500 {
+			t.Errorf("%s saw %+v, expected the shared revise settings", kind, got)
+		}
+	}
+}
+
+func TestOperationFillsZeroedLimits(t *testing.T) {
+	cfg := &Config{Operations: map[Operation]OperationConfig{OpTranslate: {}}}
+
+	operation := cfg.Operation(OpTranslate)
+	if operation.CharacterLimit != DefaultCharacterLimit {
+		t.Errorf("CharacterLimit = %d, want %d", operation.CharacterLimit, DefaultCharacterLimit)
+	}
+	if operation.TimeoutSeconds != DefaultTimeoutSeconds {
+		t.Errorf("TimeoutSeconds = %d, want %d", operation.TimeoutSeconds, DefaultTimeoutSeconds)
 	}
 }
 
@@ -91,20 +118,20 @@ func TestProviderForPrefersOverrideThenDefault(t *testing.T) {
 				BuiltInClaude: {},
 			},
 		},
-		Actions: map[ActionKind]ActionConfig{
-			ActionTranslate:       {ProviderID: BuiltInClaude},
-			ActionReviseSelection: {},
-			ActionReviseAll:       {ProviderID: "deleted-provider"},
+		Operations: map[Operation]OperationConfig{
+			OpTranslate: {ProviderID: BuiltInClaude},
+			OpRevise:    {},
+			OpDictate:   {ProviderID: "deleted-provider"},
 		},
 	}
 
-	if got := cfg.ProviderFor(ActionTranslate); got != BuiltInClaude {
+	if got := cfg.ProviderFor(OpTranslate); got != BuiltInClaude {
 		t.Errorf("override ignored: got %q", got)
 	}
-	if got := cfg.ProviderFor(ActionReviseSelection); got != BuiltInOpenAI {
+	if got := cfg.ProviderFor(OpRevise); got != BuiltInOpenAI {
 		t.Errorf("empty override should use the default: got %q", got)
 	}
-	if got := cfg.ProviderFor(ActionReviseAll); got != BuiltInOpenAI {
+	if got := cfg.ProviderFor(OpDictate); got != BuiltInOpenAI {
 		t.Errorf("override naming a deleted provider should fall back: got %q", got)
 	}
 }
@@ -115,6 +142,9 @@ func TestApplyDefaultsRepairsPartialConfig(t *testing.T) {
 
 	if len(cfg.Actions) != len(ActionOrder) {
 		t.Errorf("Actions has %d entries, want %d", len(cfg.Actions), len(ActionOrder))
+	}
+	if len(cfg.Operations) != len(OperationOrder) {
+		t.Errorf("Operations has %d entries, want %d", len(cfg.Operations), len(OperationOrder))
 	}
 	if cfg.Translate.PrimaryLanguage == cfg.Translate.SecondaryLanguage {
 		t.Error("language pair must differ")
@@ -131,10 +161,43 @@ func TestActionKindClassification(t *testing.T) {
 	if ActionReviseSelection.SelectsAll() || ActionTranslate.SelectsAll() {
 		t.Error("selection-scoped actions must not select all")
 	}
-	if ActionDictate.UsesAI() {
+	if OpDictate.UsesAI() {
 		t.Error("dictate does not call a text provider")
 	}
-	if !ActionTranslate.UsesAI() {
+	if !OpTranslate.UsesAI() {
 		t.Error("translate calls a text provider")
+	}
+}
+
+// main shipped a 1000-character limit and a 30-second timeout. Both are
+// defaults people never touch, so a quiet change would go unnoticed.
+func TestShippedDefaultsAreUnchanged(t *testing.T) {
+	if DefaultCharacterLimit != 1000 {
+		t.Errorf("DefaultCharacterLimit = %d, want 1000", DefaultCharacterLimit)
+	}
+	if DefaultTimeoutSeconds != 30 {
+		t.Errorf("DefaultTimeoutSeconds = %d, want 30", DefaultTimeoutSeconds)
+	}
+	if !Default().EnableProviderMentions {
+		t.Error("provider mentions were on by default and should stay on")
+	}
+}
+
+func TestDefaultHotkeysMatchWhatShipped(t *testing.T) {
+	actions := DefaultActions()
+
+	// These were proven in daily use before the rename; they must not drift.
+	want := map[ActionKind]string{
+		ActionReviseAll: "ctrl+alt+space",
+		ActionTranslate: "ctrl+alt+g",
+	}
+	if runtime.GOOS == "linux" {
+		want[ActionReviseSelection] = "ctrl+super"
+	}
+
+	for kind, binding := range want {
+		if got := actions[kind].Hotkey; got != binding {
+			t.Errorf("%s default = %q, want %q", kind, got, binding)
+		}
 	}
 }

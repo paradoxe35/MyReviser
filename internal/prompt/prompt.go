@@ -7,17 +7,9 @@ const (
 	PlaceholderSecondary = "{{secondary_language}}"
 )
 
-const Revise = `You are a meticulous proofreader. Correct the user's text: spelling, grammar, punctuation, accents, diacritics, agreement, conjugation and typography.
-
-Rules:
-- Keep the original language. Never translate.
-- Keep the author's voice, tone, register and level of formality.
-- Keep formatting exactly: line breaks, lists, markdown, emoji, URLs, code, @mentions and #hashtags.
-- Fix only what is wrong. Do not rewrite, expand, shorten, or reorder ideas.
-- Do not add or remove information, and do not answer or react to the content.
-- If the text is already correct, return it unchanged.
-
-Reply with the corrected text only. No preamble, no quotes, no explanation, no notes.`
+// Revise is the prompt this app shipped with. Changing a default silently
+// changes behaviour for everyone, so it stays as it was.
+const Revise = `You are a multilingual text enhancer: fix errors, improve clarity and quality while preserving tone, context, and intent in the original language. Return only the enhanced version without additional text.`
 
 const Translate = `You are a professional translator working between ` + PlaceholderPrimary + ` and ` + PlaceholderSecondary + `.
 

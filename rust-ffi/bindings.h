@@ -12,6 +12,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define encre_SAMPLE_RATE 16000
+
 typedef void *encre_ClipboardHandle;
 
 /**
@@ -24,7 +26,20 @@ typedef void *encre_HotkeyManagerHandle;
  */
 typedef void (*encre_HotkeyCallback)(const char*);
 
+/**
+ * Push-to-talk delivers both edges: 1 when the key goes down, 0 when it comes
+ * up. Kept separate from `HotkeyCallback` so existing bindings keep their ABI.
+ */
+typedef void (*encre_PttCallback)(const char*, int);
+
 typedef void *encre_SimulatorHandle;
+
+typedef void *encre_SttHandle;
+
+/**
+ * Reports microphone level while recording, so the host can draw a meter.
+ */
+typedef void (*encre_LevelCallback)(float);
 
 #if defined(ENCRE_MACOS)
 extern bool CGEventSourceKeyState(int32_t state_id, uint16_t key);
@@ -77,6 +92,15 @@ int encre_hotkey_register(encre_HotkeyManagerHandle handle,
                           const char *action,
                           encre_HotkeyCallback callback);
 
+/**
+ * Registers a push-to-talk binding. The callback receives 1 on key down and 0
+ * on key up, so the host can record only while the shortcut is held.
+ */
+int encre_hotkey_register_hold(encre_HotkeyManagerHandle handle,
+                               const char *binding,
+                               const char *action,
+                               encre_PttCallback callback);
+
 int encre_hotkey_start(encre_HotkeyManagerHandle handle);
 
 int encre_hotkey_stop(encre_HotkeyManagerHandle handle);
@@ -102,5 +126,49 @@ int encre_simulate_paste(encre_SimulatorHandle handle);
 int encre_simulate_release_modifiers(encre_SimulatorHandle handle);
 
 void encre_simulator_free(encre_SimulatorHandle handle);
+
+encre_SttHandle encre_stt_new(encre_LevelCallback level);
+
+void encre_stt_free(encre_SttHandle handle);
+
+/**
+ * Loads a model and keeps it resident. Idempotent for the same path, so the
+ * host may call it on every dictation.
+ */
+int encre_stt_load(encre_SttHandle handle, const char *path);
+
+int encre_stt_unload(encre_SttHandle handle);
+
+/**
+ * Opens the capture device without recording, so the next start costs nothing.
+ */
+int encre_stt_warm(encre_SttHandle handle);
+
+int encre_stt_start(encre_SttHandle handle);
+
+/**
+ * Stops recording and transcribes. Blocks for as long as inference takes, so
+ * the host must call it off its UI thread.
+ */
+char *encre_stt_stop(encre_SttHandle handle);
+
+int encre_stt_cancel(encre_SttHandle handle);
+
+/**
+ * Transcribes a 16 kHz mono WAV without touching the microphone, so a model
+ * can be verified from settings.
+ */
+char *encre_stt_transcribe_file(encre_SttHandle handle, const char *path);
+
+/**
+ * Selects the capture device by name. Null or empty means the system default.
+ * Takes effect on the next recording.
+ */
+int encre_stt_set_device(encre_SttHandle handle, const char *name);
+
+/**
+ * Input device names, newline separated, the default marked with a leading '*'.
+ */
+char *encre_stt_devices(void);
 
 #endif  /* ENCRE_FFI_H */

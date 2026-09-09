@@ -25,6 +25,7 @@ func (w *MainWindow) saveSettings() {
 	w.config.Translate.PrimaryLanguage = w.primaryLanguage.Code()
 	w.config.Translate.SecondaryLanguage = w.secondaryLanguage.Code()
 	w.config.EnableProviderMentions = w.mentionsCheck.Checked
+	w.applySpeechSettings()
 
 	startMinimized, _ := w.startMinimizedBinding.Get()
 	startOnLogin, _ := w.startOnLoginBinding.Get()
@@ -81,26 +82,32 @@ func (w *MainWindow) applyProviderSettings() error {
 }
 
 func (w *MainWindow) applyActionSettings() error {
-	for kind, editor := range w.actionEditors {
+	for _, kind := range config.ActionOrder {
 		action := w.config.Action(kind)
 
-		hotkey, _ := w.hotkeyBindings[kind].Get()
-		action.Hotkey = hotkey
-		action.Enabled = editor.enabled.Checked
-
-		if editor.prompt != nil {
-			limit, err := strconv.Atoi(editor.limit.Text)
-			if err != nil || validateCharacterLimit(editor.limit.Text) != nil {
-				return fmt.Errorf("%s: character limit must be between 100 and 20000", kind.Label())
-			}
-
-			action.SystemPrompt = editor.prompt.Text
-			action.CharacterLimit = limit
-			action.TimeoutSeconds = int(editor.timeout.Value)
-			action.ProviderID = providerID(editor.provider.Selected)
+		if binding, ok := w.hotkeyBindings[kind]; ok {
+			hotkey, _ := binding.Get()
+			action.Hotkey = hotkey
+		}
+		if enable, ok := w.enables[kind]; ok {
+			action.Enabled = enable.Checked
 		}
 
 		w.config.SetAction(kind, action)
+	}
+
+	for op, editor := range w.operationEditors {
+		limit, err := strconv.Atoi(editor.limit.Text)
+		if err != nil || validateCharacterLimit(editor.limit.Text) != nil {
+			return fmt.Errorf("%s: character limit must be between 1 and 100000", op.Label())
+		}
+
+		w.config.SetOperation(op, config.OperationConfig{
+			SystemPrompt:   editor.prompt.Text,
+			CharacterLimit: limit,
+			TimeoutSeconds: int(editor.timeout.Value),
+			ProviderID:     providerID(editor.provider.Selected),
+		})
 	}
 	return nil
 }

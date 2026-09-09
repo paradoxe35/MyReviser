@@ -13,6 +13,7 @@ import (
 	"github.com/paradoxe35/encre/internal/logger"
 	"github.com/paradoxe35/encre/internal/permissions"
 	"github.com/paradoxe35/encre/internal/platform"
+	"github.com/paradoxe35/encre/internal/stt"
 )
 
 const (
@@ -42,12 +43,26 @@ type MainWindow struct {
 	startOnLoginBinding   binding.Bool
 	themeBinding          binding.String
 
-	hotkeyBindings map[config.ActionKind]binding.String
-	actionEditors  map[config.ActionKind]*actionEditor
+	hotkeyBindings   map[config.ActionKind]binding.String
+	operationEditors map[config.Operation]*operationEditor
+	captures         map[config.ActionKind]*HotkeyCapture
+	enables          map[config.ActionKind]*widget.Check
 
 	primaryLanguage   *LanguagePicker
 	secondaryLanguage *LanguagePicker
 	mentionsCheck     *widget.Check
+
+	speechModels      *ModelList
+	speechStoreRef    *stt.Store
+	speechEngine      *widget.Select
+	speechKeepLoaded  *widget.Check
+	speechWarmMic     *widget.Check
+	speechCleanUp     *widget.Check
+	microphone        *MicrophonePicker
+	speechRemote      *widget.Select
+	speechRemoteModel *widget.SelectEntry
+	speechRemoteURL   *widget.Entry
+	speechRemoteKey   *widget.Entry
 
 	// UI containers for dynamic visibility
 	baseURLContainer *fyne.Container
@@ -194,10 +209,11 @@ func (w *MainWindow) createContent() fyne.CanvasObject {
 	statusBar := w.createStatusBar()
 
 	tabs := container.NewAppTabs(
-		container.NewTabItemWithIcon("Provider", theme.ComputerIcon(), w.createProviderSection()),
-		container.NewTabItemWithIcon("Actions", theme.SettingsIcon(), w.createActionsSection()),
-		container.NewTabItemWithIcon("Translate", theme.MenuExpandIcon(), w.createTranslateSection()),
-		container.NewTabItemWithIcon("System", theme.ViewFullScreenIcon(), w.createSystemSection()),
+		container.NewTabItemWithIcon("AI", theme.ComputerIcon(), w.createProviderSection()),
+		container.NewTabItemWithIcon("Hotkeys", keyboardIcon, w.createHotkeysSection()),
+		container.NewTabItemWithIcon("Actions", theme.DocumentIcon(), w.createActionsSection()),
+		container.NewTabItemWithIcon("Speech", theme.MediaRecordIcon(), w.createSpeechSection()),
+		container.NewTabItemWithIcon("System", theme.SettingsIcon(), w.createSystemSection()),
 	)
 
 	// Fix for AppTabs layout width issue on Windows

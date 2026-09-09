@@ -9,6 +9,7 @@ use parking_lot::Mutex;
 pub type HotkeyManagerHandle = *mut c_void;
 pub type ClipboardHandle = *mut c_void;
 pub type SimulatorHandle = *mut c_void;
+pub type SttHandle = *mut c_void;
 
 /// FFI Error codes returned by all functions
 #[repr(C)]

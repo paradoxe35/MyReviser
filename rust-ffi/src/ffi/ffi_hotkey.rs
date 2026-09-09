@@ -33,6 +33,10 @@ fn is_wayland() -> bool {
 /// Receives the action string the binding was registered with.
 pub type HotkeyCallback = extern "C" fn(*const c_char);
 
+/// Push-to-talk delivers both edges: 1 when the key goes down, 0 when it comes
+/// up. Kept separate from `HotkeyCallback` so existing bindings keep their ABI.
+pub type PttCallback = extern "C" fn(*const c_char, c_int);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Modifier {
     Ctrl,
@@ -222,25 +226,46 @@ fn parse_binding(binding: &str) -> Result<(Modifiers, Option<&'static str>), Str
     Ok((modifiers, key))
 }
 
+/// How a binding reports itself: once on press, or on both edges.
+enum Trigger {
+    Tap(HotkeyCallback),
+    Hold(PttCallback),
+}
+
 struct HotkeyBinding {
     binding: String,
     action: String,
-    callback: HotkeyCallback,
+    trigger: Trigger,
     modifiers: Modifiers,
     /// `None` for a modifier-only binding such as `ctrl+cmd`.
     key: Option<&'static str>,
 }
 
-fn fire(binding: &HotkeyBinding) {
+impl HotkeyBinding {
+    fn is_hold(&self) -> bool {
+        matches!(self.trigger, Trigger::Hold(_))
+    }
+}
+
+fn fire(binding: &HotkeyBinding, down: bool) {
     tracing::info!(
-        "Hotkey triggered: {} (action: {})",
+        "Hotkey {} : {} (action: {})",
+        if down { "down" } else { "up" },
         binding.binding,
         binding.action
     );
     // Lent, not handed over: `into_raw` leaked one allocation per key press. The host copies
     // during the call.
-    if let Ok(action) = CString::new(binding.action.as_str()) {
-        (binding.callback)(action.as_ptr());
+    let Ok(action) = CString::new(binding.action.as_str()) else {
+        return;
+    };
+    match binding.trigger {
+        Trigger::Tap(callback) => {
+            if down {
+                callback(action.as_ptr())
+            }
+        }
+        Trigger::Hold(callback) => callback(action.as_ptr(), c_int::from(down)),
     }
 }
 
@@ -260,6 +285,9 @@ struct ListenerState {
     interrupted: bool,
     /// The non-modifier key currently down, so auto-repeat is not read as a second press.
     held_key: Option<&'static str>,
+    /// The key that started a push-to-talk binding, so the up edge is only sent
+    /// for a hold that actually began.
+    holding: Option<&'static str>,
     delivery_announced: bool,
     unmatched_announced: Vec<&'static str>,
 }
@@ -309,8 +337,11 @@ impl ListenerState {
         let mut fired = false;
         for binding in bindings.iter() {
             if binding.key == Some(name) && binding.modifiers == self.held {
-                fire(binding);
+                fire(binding, true);
                 fired = true;
+                if binding.is_hold() {
+                    self.holding = Some(name);
+                }
             }
         }
         if !fired {
@@ -320,8 +351,21 @@ impl ListenerState {
 
     fn on_release(&mut self, key: Key, bindings: &Mutex<Vec<HotkeyBinding>>) {
         let Some(modifier) = Modifier::from_key(&key) else {
-            if self.held_key == key_name(&key) {
+            let name = key_name(&key);
+            if self.held_key == name {
                 self.held_key = None;
+            }
+            // Only the named key ends a hold. Releasing a modifier first is a
+            // slipped finger, not an instruction to stop recording.
+            if let (Some(name), Some(holding)) = (name, self.holding) {
+                if name == holding {
+                    self.holding = None;
+                    for binding in bindings.lock().iter() {
+                        if binding.is_hold() && binding.key == Some(name) {
+                            fire(binding, false);
+                        }
+                    }
+                }
             }
             return;
         };
@@ -336,7 +380,7 @@ impl ListenerState {
         if !self.interrupted && before == self.chord {
             for binding in bindings.lock().iter() {
                 if binding.key.is_none() && binding.modifiers == before {
-                    fire(binding);
+                    fire(binding, true);
                 }
             }
         }
@@ -393,12 +437,33 @@ impl SimpleHotkeyManager {
         action: String,
         callback: HotkeyCallback,
     ) -> Result<(), String> {
+        self.push(binding, action, Trigger::Tap(callback))
+    }
+
+    /// Registers a binding that reports both edges. A hold needs a real key:
+    /// a modifier-only chord has no press to hold down.
+    pub fn register_hold(
+        &mut self,
+        binding: String,
+        action: String,
+        callback: PttCallback,
+    ) -> Result<(), String> {
+        let (_, key) = parse_binding(&binding)?;
+        if key.is_none() {
+            return Err(format!(
+                "{binding} is modifiers only, which cannot be held for push-to-talk"
+            ));
+        }
+        self.push(binding, action, Trigger::Hold(callback))
+    }
+
+    fn push(&mut self, binding: String, action: String, trigger: Trigger) -> Result<(), String> {
         let (modifiers, key) = parse_binding(&binding)?;
         tracing::info!("Registered hotkey: {} (action: {})", binding, action);
         self.bindings.lock().push(HotkeyBinding {
             binding,
             action,
-            callback,
+            trigger,
             modifiers,
             key,
         });
@@ -556,6 +621,52 @@ pub unsafe extern "C" fn encre_hotkey_register(
     };
 
     match manager.register(binding_str, action_str, callback) {
+        Ok(_) => FFIErrorCode::Success as c_int,
+        Err(e) => {
+            set_last_error(format!("Hotkey registration failed: {}", e));
+            FFIErrorCode::OperationFailed as c_int
+        }
+    }
+}}
+
+/// Registers a push-to-talk binding. The callback receives 1 on key down and 0
+/// on key up, so the host can record only while the shortcut is held.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn encre_hotkey_register_hold(
+    handle: HotkeyManagerHandle,
+    binding: *const c_char,
+    action: *const c_char,
+    callback: PttCallback,
+) -> c_int { unsafe {
+    if handle.is_null() {
+        set_last_error("Null hotkey manager handle provided".to_string());
+        return FFIErrorCode::NullPointer as c_int;
+    }
+
+    if binding.is_null() || action.is_null() {
+        set_last_error("Null binding or action provided".to_string());
+        return FFIErrorCode::NullPointer as c_int;
+    }
+
+    let manager = &mut *(handle as *mut SimpleHotkeyManager);
+
+    let binding_str = match c_str_to_string(binding) {
+        Ok(s) => s,
+        Err(e) => {
+            set_last_error(format!("Invalid binding string: {}", e));
+            return FFIErrorCode::InvalidUtf8 as c_int;
+        }
+    };
+
+    let action_str = match c_str_to_string(action) {
+        Ok(s) => s,
+        Err(e) => {
+            set_last_error(format!("Invalid action string: {}", e));
+            return FFIErrorCode::InvalidUtf8 as c_int;
+        }
+    };
+
+    match manager.register_hold(binding_str, action_str, callback) {
         Ok(_) => FFIErrorCode::Success as c_int,
         Err(e) => {
             set_last_error(format!("Hotkey registration failed: {}", e));

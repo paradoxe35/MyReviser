@@ -1,6 +1,7 @@
 pub mod ffi_clipboard;
 pub mod ffi_hotkey;
 pub mod ffi_simulator;
+pub mod ffi_stt;
 pub mod ffi_types;
 
 pub use ffi_types::*;

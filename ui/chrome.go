@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	windowWidth    = 480
-	windowHeight   = 560
+	windowWidth    = 600
+	windowHeight   = 600
 	titleBarHeight = 34
 )
 

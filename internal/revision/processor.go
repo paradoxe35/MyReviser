@@ -212,7 +212,7 @@ func (p *Processor) Run(kind config.ActionKind) error {
 
 func (p *Processor) transform(text string, kind config.ActionKind) (string, error) {
 	cfg := p.currentConfig()
-	action := cfg.Action(kind)
+	operation := cfg.Operation(kind.Operation())
 
 	mentioned, cleanedText, hasMention := p.parseProviderMention(cfg, text)
 
@@ -228,18 +228,18 @@ func (p *Processor) transform(text string, kind config.ActionKind) (string, erro
 
 	// Counted in characters, not bytes: an accented letter is two bytes in UTF-8, so len() halved
 	// the limit for exactly the text this app exists to correct.
-	if characters := utf8.RuneCountInString(trimmed); characters > action.CharacterLimit {
+	if characters := utf8.RuneCountInString(trimmed); characters > operation.CharacterLimit {
 		return "", fmt.Errorf("selection is %d characters, over the %d limit",
-			characters, action.CharacterLimit)
+			characters, operation.CharacterLimit)
 	}
 
-	provider, err := p.resolveProvider(cfg, kind, mentioned)
+	provider, err := p.resolveProvider(cfg, kind.Operation(), mentioned)
 	if err != nil {
 		return "", err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(),
-		time.Duration(action.TimeoutSeconds)*time.Second)
+		time.Duration(operation.TimeoutSeconds)*time.Second)
 	defer cancel()
 
 	logger.Info("Sending text to AI provider",
@@ -249,7 +249,7 @@ func (p *Processor) transform(text string, kind config.ActionKind) (string, erro
 		"characters", utf8.RuneCountInString(trimmed),
 	)
 
-	answer, err := provider.ReviseText(ctx, trimmed, systemPrompt(cfg, kind, action))
+	answer, err := provider.ReviseText(ctx, trimmed, systemPrompt(cfg, kind.Operation(), operation))
 	if err != nil {
 		return "", fmt.Errorf("%s failed: %w", kind.Label(), err)
 	}
@@ -264,9 +264,9 @@ func (p *Processor) transform(text string, kind config.ActionKind) (string, erro
 	return leadingWhitespace(source) + cleaned + trailingWhitespace(source), nil
 }
 
-func systemPrompt(cfg *config.Config, kind config.ActionKind, action config.ActionConfig) string {
-	template := action.PromptOrDefault(kind)
-	if kind != config.ActionTranslate {
+func systemPrompt(cfg *config.Config, op config.Operation, operation config.OperationConfig) string {
+	template := operation.PromptOrDefault(op)
+	if op != config.OpTranslate {
 		return template
 	}
 
@@ -278,7 +278,7 @@ func systemPrompt(cfg *config.Config, kind config.ActionKind, action config.Acti
 
 // resolveProvider prefers an @mention, then the action's own override, then the
 // default. A failed mention falls back rather than aborting the run.
-func (p *Processor) resolveProvider(cfg *config.Config, kind config.ActionKind, mentioned string) (ai.Provider, error) {
+func (p *Processor) resolveProvider(cfg *config.Config, op config.Operation, mentioned string) (ai.Provider, error) {
 	if mentioned != "" {
 		provider, err := p.providerNamed(mentioned)
 		if err == nil {
@@ -289,7 +289,7 @@ func (p *Processor) resolveProvider(cfg *config.Config, kind config.ActionKind, 
 			"mentioned", mentioned, "error", err)
 	}
 
-	provider, err := p.providerNamed(cfg.ProviderFor(kind))
+	provider, err := p.providerNamed(cfg.ProviderFor(op))
 	if err != nil {
 		return nil, fmt.Errorf("no AI provider configured - add an API key in Settings")
 	}
@@ -345,4 +345,23 @@ func leadingWhitespace(text string) string {
 
 func trailingWhitespace(text string) string {
 	return text[len(strings.TrimRightFunc(text, unicode.IsSpace)):]
+}
+
+// InsertText types text at the cursor without replacing a selection, for
+// dictation. SaveCurrent first so the user's clipboard survives.
+func (p *Processor) InsertText(text string) error {
+	if strings.TrimSpace(text) == "" {
+		return nil
+	}
+
+	release, err := p.begin()
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	if err := p.clipboardManager.SaveCurrent(); err != nil {
+		logger.Warn("Could not save the clipboard before dictating", "error", err)
+	}
+	return p.clipboardManager.ReplaceSelectedText(text)
 }

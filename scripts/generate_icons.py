@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Generate Encre's icon set: a pen nib on a flat rounded tile."""
+"""Generate Encre's icon set: an ink drop on a flat rounded tile."""
 
+import math
 import os
 
 from PIL import Image, ImageDraw
@@ -9,17 +10,14 @@ SUPERSAMPLE = 8
 CORNER_RATIO = 0.2237  # Apple's continuous-corner approximation
 
 TILE = (79, 70, 229)
-NIB = (255, 255, 255)
+INK = (255, 255, 255)
 
-NIB_HALF_WIDTH = 0.190
-NIB_TOP = 0.215
-NIB_TIP = 0.840
-NIB_CROWN = 0.022
-VENT_CENTER = 0.430
-VENT_RADIUS = 0.046
-SLIT_TOP_HALF = 0.028
-SLIT_BOTTOM_HALF = 0.009
-SLIT_END = 0.800
+# A teardrop: apex on top, circular bottom, sides running along the tangents
+# from the apex to that circle. Straight tangents keep the silhouette crisp at
+# 16 px where a fussier curve turns to mush.
+DROP_CENTER_Y = 0.605
+DROP_RADIUS = 0.255
+DROP_APEX_Y = 0.145
 
 APP_SIZES = [16, 20, 22, 24, 32, 36, 40, 48, 64, 72, 96, 128, 192, 256, 512, 1024]
 ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
@@ -27,55 +25,36 @@ TRAY_SIZES = [16, 32, 48]
 TRAY_MARGIN = 0.06
 
 
-def quadratic(p0, p1, p2, steps):
+def drop_outline():
+    center_y, radius, apex_y = DROP_CENTER_Y, DROP_RADIUS, DROP_APEX_Y
+    height = center_y - apex_y
+
+    # Where the tangent from the apex touches the circle.
+    cos_beta = radius / height
+    cos_beta = max(-1.0, min(1.0, cos_beta))
+    beta = math.acos(cos_beta)
+
+    points = [(0.5, apex_y)]
+
+    steps = 96
+    start = -math.pi / 2 + beta          # right tangent point
+    end = start + (2 * math.pi - 2 * beta)  # sweep the long way, around the bottom
     for i in range(steps + 1):
-        t = i / steps
-        u = 1 - t
-        yield (
-            u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0],
-            u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1],
-        )
+        angle = start + (end - start) * i / steps
+        points.append((0.5 + radius * math.cos(angle), center_y + radius * math.sin(angle)))
 
-
-def nib_outline():
-    left = (0.5 - NIB_HALF_WIDTH, NIB_TOP)
-    right = (0.5 + NIB_HALF_WIDTH, NIB_TOP)
-    tip = (0.5, NIB_TIP)
-    shoulder = NIB_TOP + 0.34
-
-    return (
-        list(quadratic(left, (0.5, NIB_TOP - NIB_CROWN * 2), right, 48))
-        + list(quadratic(right, (0.5 + NIB_HALF_WIDTH * 0.92, shoulder), tip, 64))
-        + list(quadratic(tip, (0.5 - NIB_HALF_WIDTH * 0.92, shoulder), left, 64))
-    )
+    return points
 
 
 def scaled(points, size):
     return [(x * size, y * size) for x, y in points]
 
 
-def nib_mask(size):
+def drop_mask(size):
     mask = Image.new("L", (size, size), 0)
     draw = ImageDraw.Draw(mask)
 
-    draw.polygon(scaled(nib_outline(), size), fill=255)
-
-    vent = VENT_RADIUS * size
-    cx, cy = 0.5 * size, VENT_CENTER * size
-    draw.ellipse((cx - vent, cy - vent, cx + vent, cy + vent), fill=0)
-
-    draw.polygon(
-        scaled(
-            [
-                (0.5 - SLIT_TOP_HALF, VENT_CENTER),
-                (0.5 + SLIT_TOP_HALF, VENT_CENTER),
-                (0.5 + SLIT_BOTTOM_HALF, SLIT_END),
-                (0.5 - SLIT_BOTTOM_HALF, SLIT_END),
-            ],
-            size,
-        ),
-        fill=0,
-    )
+    draw.polygon(scaled(drop_outline(), size), fill=255)
     return mask
 
 
@@ -96,13 +75,13 @@ def filled(size, color, mask):
 def app_icon(size):
     work = size * SUPERSAMPLE
     icon = filled(work, TILE, tile_mask(work))
-    icon.paste(Image.new("RGBA", (work, work), NIB + (255,)), (0, 0), nib_mask(work))
+    icon.paste(Image.new("RGBA", (work, work), INK + (255,)), (0, 0), drop_mask(work))
     return icon.resize((size, size), Image.LANCZOS)
 
 
 def tray_icon(size):
     work = size * SUPERSAMPLE
-    glyph = filled(work, NIB, nib_mask(work))
+    glyph = filled(work, INK, drop_mask(work))
     glyph = glyph.crop(glyph.getbbox())
 
     inner = round(size * (1 - TRAY_MARGIN * 2))

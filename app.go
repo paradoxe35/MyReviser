@@ -14,6 +14,7 @@ import (
 	"github.com/paradoxe35/encre/internal/logger"
 	"github.com/paradoxe35/encre/internal/permissions"
 	"github.com/paradoxe35/encre/internal/revision"
+	"github.com/paradoxe35/encre/internal/stt"
 	"github.com/paradoxe35/encre/ui"
 )
 
@@ -24,6 +25,7 @@ type Application struct {
 	config        *config.Config
 	hotkeyManager *input.FFIHotkeyManager
 	processor     *revision.Processor
+	dictation     *revision.Dictation
 	notifications *ui.NotificationManager
 
 	permissionMonitorCancel    context.CancelFunc
@@ -65,11 +67,20 @@ func NewApplication(app fyne.App, cfg *config.Config) (*Application, error) {
 		reloadDebounce: 500 * time.Millisecond, // Debounce rapid reloads
 	}
 
+	application.dictation = revision.NewDictation(processor,
+		func() *config.Config { return application.config },
+		func(err error) {
+			application.notifications.ShowError("Dictation failed", err.Error())
+		})
+
 	// Setup permission monitoring before hotkeys to update the UI early
 	application.setupPermissions()
 
 	// Setup hotkeys
 	application.setupHotkeys()
+
+	stt.RefreshInBackground()
+	application.dictation.Prepare()
 
 	// Listen for config changes to reload hotkeys
 	config.RegisterListener(func(newCfg *config.Config) {
@@ -113,9 +124,35 @@ func (a *Application) setupHotkeys() {
 			continue
 		}
 
+		if kind == config.ActionDictate {
+			a.registerDictation(action)
+			continue
+		}
+
 		err := a.hotkeyManager.RegisterHotkey(action.Hotkey, string(kind), a.actionHandler(kind))
 		a.reportBindingFailure(action.Hotkey, err)
 	}
+}
+
+func (a *Application) registerDictation(action config.ActionConfig) {
+	if a.dictation == nil {
+		return
+	}
+
+	if action.PushToTalk {
+		err := a.hotkeyManager.RegisterHoldHotkey(action.Hotkey,
+			string(config.ActionDictate), a.dictation.Toggle)
+		a.reportBindingFailure(action.Hotkey, err)
+		return
+	}
+
+	// Toggle mode: each press flips recording, so the same handler serves both.
+	recording := false
+	err := a.hotkeyManager.RegisterHotkey(action.Hotkey, string(config.ActionDictate), func() {
+		recording = !recording
+		a.dictation.Toggle(recording)
+	})
+	a.reportBindingFailure(action.Hotkey, err)
 }
 
 func (a *Application) actionHandler(kind config.ActionKind) func() {
@@ -316,6 +353,10 @@ func (a *Application) Stop() {
 	}
 
 	// Close processor resources
+	if a.dictation != nil {
+		a.dictation.Close()
+	}
+
 	if a.processor != nil {
 		a.processor.Close()
 	}

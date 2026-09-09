@@ -28,11 +28,13 @@ const (
 
 type Config struct {
 	mu         sync.RWMutex
-	AIProvider AIProviderConfig            `json:"ai_provider"`
-	Actions    map[ActionKind]ActionConfig `json:"actions"`
-	Translate  TranslateConfig             `json:"translate"`
-	Appearance AppearanceConfig            `json:"appearance"`
-	Meta       MetaConfig                  `json:"meta"`
+	AIProvider AIProviderConfig              `json:"ai_provider"`
+	Actions    map[ActionKind]ActionConfig   `json:"actions"`
+	Operations map[Operation]OperationConfig `json:"operations"`
+	Translate  TranslateConfig               `json:"translate"`
+	Speech     SpeechConfig                  `json:"speech"`
+	Appearance AppearanceConfig              `json:"appearance"`
+	Meta       MetaConfig                    `json:"meta"`
 
 	// EnableProviderMentions lets a selection opt into a provider by starting
 	// with "@name". Applies to every AI-backed action.
@@ -116,7 +118,9 @@ func Default() *Config {
 			},
 		},
 		Actions:                DefaultActions(),
+		Operations:             DefaultOperations(),
 		Translate:              defaultTranslate(),
+		Speech:                 defaultSpeech(),
 		Appearance:             defaultAppearance(),
 		Meta:                   MetaConfig{FirstRun: true},
 		EnableProviderMentions: true,
@@ -433,20 +437,17 @@ func (c *Config) applyDefaults() {
 		defaults := DefaultActions()
 		for _, kind := range ActionOrder {
 			action, ok := c.Actions[kind]
-			if !ok {
+			if !ok || action.Hotkey == "" {
 				c.Actions[kind] = defaults[kind]
-				continue
 			}
-			if action.CharacterLimit == 0 {
-				action.CharacterLimit = DefaultCharacterLimit
-			}
-			if action.TimeoutSeconds == 0 {
-				action.TimeoutSeconds = DefaultTimeoutSeconds
-			}
-			if action.Hotkey == "" {
-				action.Hotkey = defaults[kind].Hotkey
-			}
-			c.Actions[kind] = action
+		}
+	}
+
+	if c.Operations == nil {
+		c.Operations = DefaultOperations()
+	} else {
+		for _, op := range OperationOrder {
+			c.Operations[op] = c.operationLocked(op)
 		}
 	}
 
@@ -455,5 +456,8 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Appearance.Theme == "" {
 		c.Appearance.Theme = defaultAppearance().Theme
+	}
+	if c.Speech.Engine == "" {
+		c.Speech.Engine = defaultSpeech().Engine
 	}
 }
