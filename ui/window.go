@@ -79,6 +79,7 @@ type MainWindow struct {
 func NewMainWindow(app fyne.App, cfg *config.Config, hotkeyManager *input.FFIHotkeyManager) *MainWindow {
 	window := newChromelessWindow(app, "Encre")
 	window.Resize(fyne.NewSize(windowWidth, windowHeight))
+	window.SetFixedSize(true)
 	window.CenterOnScreen()
 	window.SetIcon(app.Icon())
 
