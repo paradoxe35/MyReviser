@@ -154,12 +154,12 @@ ifeq ($(CURRENT_OS),linux)
 	@test -f /usr/include/wayland-client-core.h || { echo "Missing Wayland development files: libwayland-dev"; exit 1; }
 endif
 ifeq ($(CURRENT_OS),linux)
-ifeq ($(CURRENT_OS),linux)
-	@echo "Installing musl-tools for static builds..."
+ifdef STATIC
 	@command -v musl-gcc >/dev/null 2>&1 || { \
-		echo "Please install musl-tools:"; \
-		echo "  sudo apt-get install musl-tools build-essential cmake pkg-config libasound2-dev libwayland-dev libx11-dev libxtst-dev"; \
+		echo "Missing musl-gcc. Install it with: sudo apt-get install musl-tools"; \
+		exit 1; \
 	}
+endif
 endif
 ifeq ($(CURRENT_OS),darwin)
 	@echo "Checking for Xcode Command Line Tools..."
