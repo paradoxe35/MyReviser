@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strings"
+
 	"fyne.io/fyne/v2/widget"
 	"github.com/paradoxe35/encre/internal/language"
 )
@@ -12,7 +14,9 @@ const languageSuggestionLimit = 12
 // dropdown is unusable.
 type LanguagePicker struct {
 	*widget.SelectEntry
-	code string
+	code          string
+	excludedCode  string
+	onCodeChanged func(string)
 }
 
 func NewLanguagePicker(code string) *LanguagePicker {
@@ -21,9 +25,13 @@ func NewLanguagePicker(code string) *LanguagePicker {
 	picker.SetText(labelFor(language.Find(code)))
 
 	picker.OnChanged = func(text string) {
-		picker.SetOptions(labelsFor(language.Search(text)))
-		if match, ok := matchLanguage(text); ok {
+		picker.refreshOptions(text)
+		if match, ok := matchLanguage(text); ok &&
+			!strings.EqualFold(match.Code, picker.excludedCode) {
 			picker.code = match.Code
+			if picker.onCodeChanged != nil {
+				picker.onCodeChanged(match.Code)
+			}
 		}
 	}
 
@@ -33,7 +41,8 @@ func NewLanguagePicker(code string) *LanguagePicker {
 // Code returns the selected language, falling back to the last valid choice so
 // a half-typed query never clears the setting.
 func (p *LanguagePicker) Code() string {
-	if match, ok := matchLanguage(p.Text); ok {
+	if match, ok := matchLanguage(p.Text); ok &&
+		!strings.EqualFold(match.Code, p.excludedCode) {
 		return match.Code
 	}
 	return p.code
@@ -42,6 +51,37 @@ func (p *LanguagePicker) Code() string {
 func (p *LanguagePicker) SetCode(code string) {
 	p.code = code
 	p.SetText(labelFor(language.Find(code)))
+	p.refreshOptions(p.Text)
+}
+
+// SetExcludedCode removes the other side's selected language from this
+// picker's choices, so a translation pair cannot be configured identically.
+func (p *LanguagePicker) SetExcludedCode(code string) {
+	p.excludedCode = code
+	if strings.EqualFold(p.code, code) {
+		for _, candidate := range language.All() {
+			if !strings.EqualFold(candidate.Code, code) {
+				p.SetCode(candidate.Code)
+				break
+			}
+		}
+	}
+	p.refreshOptions(p.Text)
+}
+
+func (p *LanguagePicker) SetOnCodeChanged(callback func(string)) {
+	p.onCodeChanged = callback
+}
+
+func (p *LanguagePicker) refreshOptions(query string) {
+	matches := language.Search(query)
+	filtered := make([]language.Language, 0, len(matches))
+	for _, candidate := range matches {
+		if !strings.EqualFold(candidate.Code, p.excludedCode) {
+			filtered = append(filtered, candidate)
+		}
+	}
+	p.SetOptions(labelsFor(filtered))
 }
 
 func labelFor(l language.Language) string {

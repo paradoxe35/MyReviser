@@ -80,3 +80,27 @@ func TestRegistryHasNoDuplicateCodes(t *testing.T) {
 		seen[l.Code] = true
 	}
 }
+
+func TestRegistryIncludesWidelyUsedLanguages(t *testing.T) {
+	want := []string{
+		"en", "zh-Hans", "hi", "es", "fr", "ar", "bn", "pt", "ru",
+		"ur", "id", "de", "ja", "pa", "mr", "te", "tr", "ta", "vi",
+		"ko", "ml", "kn", "jv", "su", "sw", "fil",
+	}
+
+	for _, code := range want {
+		if !IsKnown(code) {
+			t.Errorf("important language %q is missing from the registry", code)
+		}
+	}
+}
+
+func TestPopularLanguagesLeadEmptySearch(t *testing.T) {
+	results := Search("")
+	want := []string{"en", "zh-Hans", "hi", "es", "fr", "ar"}
+	for i, code := range want {
+		if results[i].Code != code {
+			t.Errorf("Search(\"\") index %d = %q, want %q", i, results[i].Code, code)
+		}
+	}
+}

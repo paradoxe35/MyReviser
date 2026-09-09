@@ -11,6 +11,14 @@ func (w *MainWindow) translateLanguages() fyne.CanvasObject {
 	w.primaryLanguage = NewLanguagePicker(w.config.Translate.PrimaryLanguage)
 	w.secondaryLanguage = NewLanguagePicker(w.config.Translate.SecondaryLanguage)
 
+	updateExclusions := func() {
+		w.primaryLanguage.SetExcludedCode(w.secondaryLanguage.Code())
+		w.secondaryLanguage.SetExcludedCode(w.primaryLanguage.Code())
+	}
+	w.primaryLanguage.SetOnCodeChanged(func(string) { updateExclusions() })
+	w.secondaryLanguage.SetOnCodeChanged(func(string) { updateExclusions() })
+	updateExclusions()
+
 	swap := widget.NewButtonWithIcon("Swap", theme.ViewRefreshIcon(), func() {
 		primary, secondary := w.primaryLanguage.Code(), w.secondaryLanguage.Code()
 		w.primaryLanguage.SetCode(secondary)
