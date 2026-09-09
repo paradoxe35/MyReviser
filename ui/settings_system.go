@@ -23,6 +23,7 @@ func (w *MainWindow) createSystemSection() fyne.CanvasObject {
 		func(value string) {
 			w.themeBinding.Set(value)
 			w.applyTheme(value)
+			w.markDirty()
 		},
 	)
 
@@ -37,12 +38,14 @@ func (w *MainWindow) createSystemSection() fyne.CanvasObject {
 	// Start Minimized checkbox
 	startMinimizedCheck := widget.NewCheck("Start minimized to system tray", func(checked bool) {
 		w.startMinimizedBinding.Set(checked)
+		w.markDirty()
 	})
 	startMinimizedCheck.Bind(w.startMinimizedBinding)
 
 	// Start on Login checkbox
 	startOnLoginCheck := widget.NewCheck("Start on login", func(checked bool) {
 		w.startOnLoginBinding.Set(checked)
+		w.markDirty()
 	})
 	startOnLoginCheck.Bind(w.startOnLoginBinding)
 

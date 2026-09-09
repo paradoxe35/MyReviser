@@ -43,6 +43,7 @@ func (w *MainWindow) saveSettings() {
 	}
 
 	w.statusBinding.Set("Settings saved")
+	w.markClean()
 	logger.Info("Settings saved")
 }
 

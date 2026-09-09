@@ -33,7 +33,7 @@ func (w *MainWindow) createSpeechSection() fyne.CanvasObject {
 			local.Show()
 		}
 	}
-	w.speechEngine.OnChanged = show
+	w.speechEngine.OnChanged = func(label string) { show(label); w.markDirty() }
 	show(w.speechEngine.Selected)
 
 	// Options are set once and rarely revisited; the model list is what the
@@ -76,6 +76,7 @@ func (w *MainWindow) localSpeechPane() *fyne.Container {
 		func(model stt.Model) {
 			w.config.Speech.ModelID = model.ID
 			active.SetText(activeModelText(model.ID, stt.Catalogue(), store.Downloaded))
+			w.markDirty()
 			w.statusBinding.Set("Speech model set to " + model.Name)
 		})
 	w.speechModels.SetActiveChanged(active.SetText)
@@ -116,17 +117,23 @@ func (w *MainWindow) remoteSpeechPane() *fyne.Container {
 	speech := w.config.Speech
 
 	w.speechRemoteModel = widget.NewSelectEntry(nil)
+	w.speechRemoteModel.OnChanged = func(string) { w.markDirty() }
 	w.speechRemoteModel.SetText(speech.RemoteModel)
 
 	w.speechRemoteURL = widget.NewEntry()
+	w.speechRemoteURL.OnChanged = func(string) { w.markDirty() }
 	w.speechRemoteURL.SetPlaceHolder("https://api.example.com/v1")
 	w.speechRemoteURL.SetText(speech.RemoteBaseURL)
 
 	w.speechRemoteKey = widget.NewPasswordEntry()
+	w.speechRemoteKey.OnChanged = func(string) { w.markDirty() }
 	w.speechRemoteKey.SetPlaceHolder("API key")
 	w.speechRemoteKey.SetText(speech.RemoteAPIKey)
 
-	w.speechRemote = widget.NewSelect(stt.PresetNames(), w.applyPreset)
+	w.speechRemote = widget.NewSelect(stt.PresetNames(), func(name string) {
+		w.applyPreset(name)
+		w.markDirty()
+	})
 	if preset, ok := stt.FindPreset(speech.RemoteProvider); ok {
 		w.speechRemote.SetSelected(preset.Name)
 	} else {
@@ -176,11 +183,14 @@ func (w *MainWindow) buildSpeechOptions() {
 	speech := w.config.Speech
 
 	w.microphone = NewMicrophonePicker(speech.InputDevice)
+	w.microphone.onChanged = w.markDirty
 
 	w.speechKeepLoaded = widget.NewCheck("Keep the model in memory", nil)
+	w.speechKeepLoaded.OnChanged = func(bool) { w.markDirty() }
 	w.speechKeepLoaded.SetChecked(speech.KeepModelLoaded)
 
 	w.speechCleanUp = widget.NewCheck("Tidy the transcript with AI", nil)
+	w.speechCleanUp.OnChanged = func(bool) { w.markDirty() }
 	w.speechCleanUp.SetChecked(speech.CleanUp)
 }
 

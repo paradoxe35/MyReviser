@@ -19,7 +19,7 @@ func (w *MainWindow) createHotkeysSection() fyne.CanvasObject {
 	for _, kind := range config.ActionOrder {
 		action := w.config.Action(kind)
 
-		enable := widget.NewCheck("", nil)
+		enable := widget.NewCheck("", func(bool) { w.markDirty() })
 		enable.SetChecked(action.Enabled)
 		w.enables[kind] = enable
 
@@ -43,7 +43,7 @@ func (w *MainWindow) createHotkeysSection() fyne.CanvasObject {
 	}
 
 	help := widget.NewLabel(
-		"• Click 'Capture', press keys one at a time, then Enter to save\n" +
+		"• Click 'Capture', press the keys in sequence, then Enter to save\n" +
 			"• Requires at least one modifier (Ctrl/Alt/Shift/Super)\n" +
 			"• Press ESC to cancel")
 	help.Wrapping = fyne.TextWrapWord
@@ -58,7 +58,10 @@ func (w *MainWindow) createHotkeysSection() fyne.CanvasObject {
 	})
 
 	rows = append(rows,
-		widget.NewAccordion(widget.NewAccordionItem("How to capture hotkeys", help)),
+		container.NewPadded(container.NewVBox(
+			widget.NewLabel("How to capture hotkeys"),
+			help,
+		)),
 		reset,
 	)
 
@@ -80,6 +83,7 @@ func (w *MainWindow) newCapture(kind config.ActionKind) *HotkeyCapture {
 			w.hotkeyManager.Enable()
 		}
 	}
+	capture.onChanged = w.markDirty
 	return capture
 }
 

@@ -42,6 +42,8 @@ type MainWindow struct {
 	startMinimizedBinding binding.Bool
 	startOnLoginBinding   binding.Bool
 	themeBinding          binding.String
+	unsavedLabel          *widget.Label
+	dirty                 bool
 
 	hotkeyBindings   map[config.ActionKind]binding.String
 	operationEditors map[config.Operation]*operationEditor
@@ -230,17 +232,40 @@ func (w *MainWindow) createContent() fyne.CanvasObject {
 	// Save button
 	saveBtn := widget.NewButtonWithIcon("Save Settings", theme.DocumentSaveIcon(), w.saveSettings)
 	saveBtn.Importance = widget.HighImportance
+	w.unsavedLabel = widget.NewLabel("Unsaved changes")
+	w.unsavedLabel.TextStyle.Bold = true
+	w.unsavedLabel.Importance = widget.DangerImportance
+	w.unsavedLabel.Hide()
 
 	// Main layout
 	content := container.NewBorder(
 		nil, // top
-		container.NewBorder(nil, nil, nil, saveBtn, statusBar), // bottom
+		container.NewBorder(nil, nil, w.unsavedLabel, saveBtn, statusBar), // bottom
 		nil,  // left
 		nil,  // right
 		tabs, // center
 	)
 
 	return container.NewPadded(content)
+}
+
+func (w *MainWindow) markDirty() {
+	if w.dirty {
+		return
+	}
+	w.dirty = true
+	if w.unsavedLabel != nil {
+		w.unsavedLabel.Show()
+		w.unsavedLabel.Refresh()
+	}
+}
+
+func (w *MainWindow) markClean() {
+	w.dirty = false
+	if w.unsavedLabel != nil {
+		w.unsavedLabel.Hide()
+		w.unsavedLabel.Refresh()
+	}
 }
 
 func (w *MainWindow) ShowWindow() {

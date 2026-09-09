@@ -15,9 +15,10 @@ const systemDefaultDevice = "System default"
 type MicrophonePicker struct {
 	widget.BaseWidget
 
-	selector *widget.Select
-	status   *widget.Label
-	saved    string
+	selector  *widget.Select
+	status    *widget.Label
+	saved     string
+	onChanged func()
 
 	// Injected so the empty and unplugged cases can be tested without hardware.
 	list func() []input.Device
@@ -28,8 +29,14 @@ func NewMicrophonePicker(saved string) *MicrophonePicker {
 }
 
 func newMicrophonePicker(saved string, list func() []input.Device) *MicrophonePicker {
-	p := &MicrophonePicker{
-		selector: widget.NewSelect(nil, nil),
+	p := &MicrophonePicker{}
+	p.selector = widget.NewSelect(nil, func(string) {
+		if p.onChanged != nil {
+			p.onChanged()
+		}
+	})
+	*p = MicrophonePicker{
+		selector: p.selector,
 		status:   widget.NewLabel(""),
 		saved:    saved,
 		list:     list,

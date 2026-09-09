@@ -60,8 +60,10 @@ func (w *MainWindow) newOperationEditor(op config.Operation) *operationEditor {
 		prompt:   widget.NewMultiLineEntry(),
 		limit:    widget.NewEntry(),
 		timeout:  widget.NewSlider(5, 300),
-		provider: widget.NewSelect(w.providerOptions(), nil),
+		provider: widget.NewSelect(w.providerOptions(), func(string) { w.markDirty() }),
 	}
+	editor.prompt.OnChanged = func(string) { w.markDirty() }
+	editor.limit.OnChanged = func(string) { w.markDirty() }
 
 	editor.prompt.SetText(operation.SystemPrompt)
 	// Show the built-in prompt greyed out rather than hiding it behind an empty
@@ -83,7 +85,10 @@ func (w *MainWindow) newOperationEditor(op config.Operation) *operationEditor {
 func (e *operationEditor) content(w *MainWindow, op config.Operation) fyne.CanvasObject {
 	timeoutValue := widget.NewLabel("")
 	syncTimeoutLabel(timeoutValue, e.timeout.Value)
-	e.timeout.OnChanged = func(value float64) { syncTimeoutLabel(timeoutValue, value) }
+	e.timeout.OnChanged = func(value float64) {
+		syncTimeoutLabel(timeoutValue, value)
+		w.markDirty()
+	}
 
 	rows := []fyne.CanvasObject{
 		boundBy(op),

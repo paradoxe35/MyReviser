@@ -15,8 +15,8 @@ func (w *MainWindow) translateLanguages() fyne.CanvasObject {
 		w.primaryLanguage.SetExcludedCode(w.secondaryLanguage.Code())
 		w.secondaryLanguage.SetExcludedCode(w.primaryLanguage.Code())
 	}
-	w.primaryLanguage.SetOnCodeChanged(func(string) { updateExclusions() })
-	w.secondaryLanguage.SetOnCodeChanged(func(string) { updateExclusions() })
+	w.primaryLanguage.SetOnCodeChanged(func(string) { updateExclusions(); w.markDirty() })
+	w.secondaryLanguage.SetOnCodeChanged(func(string) { updateExclusions(); w.markDirty() })
 	updateExclusions()
 
 	swap := widget.NewButtonWithIcon("Swap", theme.ViewRefreshIcon(), func() {
@@ -28,6 +28,7 @@ func (w *MainWindow) translateLanguages() fyne.CanvasObject {
 		w.primaryLanguage.SetCode(secondary)
 		w.secondaryLanguage.SetCode(primary)
 		updateExclusions()
+		w.markDirty()
 	})
 	swap.Importance = widget.LowImportance
 
