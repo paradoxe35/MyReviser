@@ -41,8 +41,15 @@ func TestEveryActionIsEnabledByDefault(t *testing.T) {
 }
 
 func TestDictateDefaultsToPushToTalk(t *testing.T) {
-	if !DefaultActions()[ActionDictate].PushToTalk {
+	action := DefaultActions()[ActionDictate]
+	if !action.PushToTalk {
 		t.Error("dictate should default to hold-to-record")
+	}
+	if action.Hotkey == "ctrl+alt+d" {
+		t.Error("dictate should not use the commonly reserved ctrl+alt+d shortcut")
+	}
+	if action.Hotkey != "ctrl+shift+space" {
+		t.Errorf("dictate default hotkey = %q, want ctrl+shift+space", action.Hotkey)
 	}
 }
 

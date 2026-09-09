@@ -135,21 +135,21 @@ func defaultHotkeys() map[ActionKind]string {
 			ActionReviseSelection: "ctrl+cmd",
 			ActionReviseAll:       "ctrl+option+space",
 			ActionTranslate:       "ctrl+option+g",
-			ActionDictate:         "ctrl+option+d",
+			ActionDictate:         "ctrl+shift+space",
 		}
 	case "windows":
 		return map[ActionKind]string{
 			ActionReviseSelection: "ctrl+win",
 			ActionReviseAll:       "ctrl+alt+space",
 			ActionTranslate:       "ctrl+alt+g",
-			ActionDictate:         "ctrl+alt+d",
+			ActionDictate:         "ctrl+shift+space",
 		}
 	default:
 		return map[ActionKind]string{
 			ActionReviseSelection: "ctrl+super",
 			ActionReviseAll:       "ctrl+alt+space",
 			ActionTranslate:       "ctrl+alt+g",
-			ActionDictate:         "ctrl+alt+d",
+			ActionDictate:         "ctrl+shift+space",
 		}
 	}
 }

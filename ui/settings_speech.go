@@ -74,13 +74,7 @@ func (w *MainWindow) localSpeechPane() *fyne.Container {
 		})
 
 	catalog := stt.Models()
-	source := "shipped list"
-	if catalog.Origin() == "cached" {
-		source = "updated " + catalog.Fetched().Format("2 Jan")
-	}
-
-	summary := widget.NewLabel(fmt.Sprintf("%d models · %d cores · %s",
-		len(catalog.Models), stt.Host().Cores, source))
+	summary := widget.NewLabel(fmt.Sprintf("%d models", len(catalog.Models)))
 	summary.TextStyle.Italic = true
 
 	refresh := widget.NewButton("Check for new", w.refreshCatalog)

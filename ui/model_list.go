@@ -33,6 +33,7 @@ type ModelList struct {
 	list   *widget.List
 	search *widget.Entry
 	filter *widget.Select
+	active *widget.Label
 }
 
 func NewModelList(store *stt.Store, window fyne.Window, selected string, onSelect func(stt.Model)) *ModelList {
@@ -59,6 +60,9 @@ func (m *ModelList) build() {
 	m.filter = widget.NewSelect(
 		[]string{"All", "Downloaded", "Recommended", "Multilingual", "English"}, nil)
 	m.filter.SetSelected("All")
+	m.active = widget.NewLabel("")
+	m.active.TextStyle.Bold = true
+	m.updateActiveLabel()
 
 	// Handlers are attached after the initial selection so neither fires before
 	// the list they refresh exists.
@@ -131,22 +135,18 @@ func matches(model stt.Model, query, mode string, store *stt.Store) bool {
 }
 
 type modelRow struct {
-	title   *widget.Label
-	meta    *widget.Label
-	action  *widget.Button
-	remove  *widget.Button
-	bar     *widget.ProgressBar
-	spinner *widget.ProgressBarInfinite
+	title  *widget.Label
+	meta   *widget.Label
+	action *widget.Button
+	remove *widget.Button
 }
 
 func (m *ModelList) template() fyne.CanvasObject {
 	row := &modelRow{
-		title:   widget.NewLabel(""),
-		meta:    widget.NewLabel(""),
-		action:  widget.NewButton("Get", nil),
-		remove:  widget.NewButtonWithIcon("", theme.DeleteIcon(), nil),
-		bar:     widget.NewProgressBar(),
-		spinner: widget.NewProgressBarInfinite(),
+		title:  widget.NewLabel(""),
+		meta:   widget.NewLabel(""),
+		action: widget.NewButton("Get", nil),
+		remove: widget.NewButtonWithIcon("", theme.DeleteIcon(), nil),
 	}
 	row.title.TextStyle.Bold = true
 	row.title.Truncation = fyne.TextTruncateEllipsis
@@ -154,17 +154,10 @@ func (m *ModelList) template() fyne.CanvasObject {
 	row.meta.Truncation = fyne.TextTruncateEllipsis
 	row.remove.Importance = widget.LowImportance
 
-	// Hidden at template time so the list's row height is measured without
-	// them; a visible progress bar here makes every row permanently taller.
-	row.bar.Hide()
-	row.spinner.Hide()
-
 	content := container.NewVBox(
 		container.NewBorder(nil, nil, nil,
 			container.NewHBox(row.action, row.remove), row.title),
 		row.meta,
-		row.bar,
-		row.spinner,
 	)
 
 	// Rows are recycled, so the widgets are found by the object List hands back
@@ -196,21 +189,16 @@ func (m *ModelList) update(i widget.ListItemID, item fyne.CanvasObject) {
 	progress, downloading := m.progress[model.ID]
 	m.mu.Unlock()
 
-	row.bar.Hide()
-	row.spinner.Hide()
 	row.remove.Hide()
 	row.action.Show()
 
 	switch {
 	case downloading && progress.Stage == stt.StageVerifying:
-		row.spinner.Show()
 		row.action.SetText("Verifying")
 		row.action.OnTapped = nil
 		row.action.Disable()
 
 	case downloading:
-		row.bar.SetValue(progress.Fraction())
-		row.bar.Show()
 		row.action.SetText(fmt.Sprintf("Cancel (%.0f%%)", progress.Fraction()*100))
 		row.action.OnTapped = func() { m.store.CancelDownload(model) }
 		row.action.Enable()
@@ -261,6 +249,7 @@ func summarise(model stt.Model, host stt.Machine) string {
 
 func (m *ModelList) choose(model stt.Model) {
 	m.selected = model.ID
+	m.updateActiveLabel()
 	if m.onSelect != nil {
 		m.onSelect(model)
 	}
@@ -268,6 +257,11 @@ func (m *ModelList) choose(model stt.Model) {
 }
 
 func (m *ModelList) download(model stt.Model) {
+	m.mu.Lock()
+	m.progress[model.ID] = stt.Progress{Model: model, Total: model.SizeBytes, Stage: stt.StageDownloading}
+	m.mu.Unlock()
+	m.list.Refresh()
+
 	go func() {
 		err := m.store.Download(context.Background(), model, func(p stt.Progress) {
 			m.mu.Lock()
@@ -307,6 +301,7 @@ func (m *ModelList) confirmDelete(model stt.Model) {
 			}
 			if m.selected == model.ID {
 				m.selected = ""
+				m.updateActiveLabel()
 			}
 			m.list.Refresh()
 		}, m.window)
@@ -318,5 +313,22 @@ func errorsIsCancelled(err error) bool {
 
 func (m *ModelList) CreateRenderer() fyne.WidgetRenderer {
 	header := container.NewBorder(nil, nil, nil, m.filter, m.search)
-	return widget.NewSimpleRenderer(container.NewBorder(header, nil, nil, nil, m.list))
+	return widget.NewSimpleRenderer(container.NewBorder(
+		container.NewVBox(m.active, header), nil, nil, nil, m.list))
+}
+
+func (m *ModelList) updateActiveLabel() {
+	if m.active == nil {
+		return
+	}
+	m.active.SetText(activeModelText(m.selected, stt.Catalogue()))
+}
+
+func activeModelText(selected string, models []stt.Model) string {
+	for _, model := range models {
+		if model.ID == selected {
+			return "Active model: " + model.Name
+		}
+	}
+	return "No active model selected"
 }
