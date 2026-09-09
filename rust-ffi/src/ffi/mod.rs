@@ -20,8 +20,10 @@ pub unsafe extern "C" fn encre_get_last_error() -> *const c_char {
 /// Free a string allocated by Rust
 /// This must be called for all strings returned by Rust functions
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn encre_free_string(s: *mut c_char) { unsafe {
-    if !s.is_null() {
-        let _ = std::ffi::CString::from_raw(s);
+pub unsafe extern "C" fn encre_free_string(s: *mut c_char) {
+    unsafe {
+        if !s.is_null() {
+            let _ = std::ffi::CString::from_raw(s);
+        }
     }
-}}
+}

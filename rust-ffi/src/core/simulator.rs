@@ -152,7 +152,9 @@ impl KeySimulator {
     fn control_combo(&mut self, letter: char) -> Result<()> {
         self.release_modifiers()?;
         self.enigo.key(Key::Control, enigo::Direction::Press)?;
-        let clicked = self.enigo.key(Key::Unicode(letter), enigo::Direction::Click);
+        let clicked = self
+            .enigo
+            .key(Key::Unicode(letter), enigo::Direction::Click);
         // Control must come up even if the letter failed, or every later keystroke is a shortcut.
         self.enigo.key(Key::Control, enigo::Direction::Release)?;
         clicked?;

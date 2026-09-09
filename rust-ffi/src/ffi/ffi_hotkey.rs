@@ -183,11 +183,15 @@ const KEYS: &[(Key, &str)] = &[
 ];
 
 fn key_name(key: &Key) -> Option<&'static str> {
-    KEYS.iter().find(|(known, _)| known == key).map(|(_, name)| *name)
+    KEYS.iter()
+        .find(|(known, _)| known == key)
+        .map(|(_, name)| *name)
 }
 
 fn canonical_key_name(name: &str) -> Option<&'static str> {
-    KEYS.iter().find(|(_, known)| *known == name).map(|(_, name)| *name)
+    KEYS.iter()
+        .find(|(_, known)| *known == name)
+        .map(|(_, name)| *name)
 }
 
 /// A binding is modifiers, then optionally one key: `ctrl+alt+space`, or `ctrl+cmd` on its own.
@@ -574,16 +578,18 @@ pub unsafe extern "C" fn encre_hotkey_manager_new() -> HotkeyManagerHandle {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn encre_hotkey_clear(handle: HotkeyManagerHandle) -> c_int { unsafe {
-    if handle.is_null() {
-        set_last_error("Null hotkey manager handle provided".to_string());
-        return FFIErrorCode::NullPointer as c_int;
-    }
+pub unsafe extern "C" fn encre_hotkey_clear(handle: HotkeyManagerHandle) -> c_int {
+    unsafe {
+        if handle.is_null() {
+            set_last_error("Null hotkey manager handle provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
+        }
 
-    let manager = &mut *(handle as *mut SimpleHotkeyManager);
-    manager.clear_bindings();
-    FFIErrorCode::Success as c_int
-}}
+        let manager = &mut *(handle as *mut SimpleHotkeyManager);
+        manager.clear_bindings();
+        FFIErrorCode::Success as c_int
+    }
+}
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn encre_hotkey_register(
@@ -591,43 +597,45 @@ pub unsafe extern "C" fn encre_hotkey_register(
     binding: *const c_char,
     action: *const c_char,
     callback: HotkeyCallback,
-) -> c_int { unsafe {
-    if handle.is_null() {
-        set_last_error("Null hotkey manager handle provided".to_string());
-        return FFIErrorCode::NullPointer as c_int;
-    }
-
-    if binding.is_null() || action.is_null() {
-        set_last_error("Null binding or action provided".to_string());
-        return FFIErrorCode::NullPointer as c_int;
-    }
-
-    let manager = &mut *(handle as *mut SimpleHotkeyManager);
-
-    let binding_str = match c_str_to_string(binding) {
-        Ok(s) => s,
-        Err(e) => {
-            set_last_error(format!("Invalid binding string: {}", e));
-            return FFIErrorCode::InvalidUtf8 as c_int;
+) -> c_int {
+    unsafe {
+        if handle.is_null() {
+            set_last_error("Null hotkey manager handle provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
         }
-    };
 
-    let action_str = match c_str_to_string(action) {
-        Ok(s) => s,
-        Err(e) => {
-            set_last_error(format!("Invalid action string: {}", e));
-            return FFIErrorCode::InvalidUtf8 as c_int;
+        if binding.is_null() || action.is_null() {
+            set_last_error("Null binding or action provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
         }
-    };
 
-    match manager.register(binding_str, action_str, callback) {
-        Ok(_) => FFIErrorCode::Success as c_int,
-        Err(e) => {
-            set_last_error(format!("Hotkey registration failed: {}", e));
-            FFIErrorCode::OperationFailed as c_int
+        let manager = &mut *(handle as *mut SimpleHotkeyManager);
+
+        let binding_str = match c_str_to_string(binding) {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(format!("Invalid binding string: {}", e));
+                return FFIErrorCode::InvalidUtf8 as c_int;
+            }
+        };
+
+        let action_str = match c_str_to_string(action) {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(format!("Invalid action string: {}", e));
+                return FFIErrorCode::InvalidUtf8 as c_int;
+            }
+        };
+
+        match manager.register(binding_str, action_str, callback) {
+            Ok(_) => FFIErrorCode::Success as c_int,
+            Err(e) => {
+                set_last_error(format!("Hotkey registration failed: {}", e));
+                FFIErrorCode::OperationFailed as c_int
+            }
         }
     }
-}}
+}
 
 /// Registers a push-to-talk binding. The callback receives 1 on key down and 0
 /// on key up, so the host can record only while the shortcut is held.
@@ -637,100 +645,110 @@ pub unsafe extern "C" fn encre_hotkey_register_hold(
     binding: *const c_char,
     action: *const c_char,
     callback: PttCallback,
-) -> c_int { unsafe {
-    if handle.is_null() {
-        set_last_error("Null hotkey manager handle provided".to_string());
-        return FFIErrorCode::NullPointer as c_int;
-    }
-
-    if binding.is_null() || action.is_null() {
-        set_last_error("Null binding or action provided".to_string());
-        return FFIErrorCode::NullPointer as c_int;
-    }
-
-    let manager = &mut *(handle as *mut SimpleHotkeyManager);
-
-    let binding_str = match c_str_to_string(binding) {
-        Ok(s) => s,
-        Err(e) => {
-            set_last_error(format!("Invalid binding string: {}", e));
-            return FFIErrorCode::InvalidUtf8 as c_int;
+) -> c_int {
+    unsafe {
+        if handle.is_null() {
+            set_last_error("Null hotkey manager handle provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
         }
-    };
 
-    let action_str = match c_str_to_string(action) {
-        Ok(s) => s,
-        Err(e) => {
-            set_last_error(format!("Invalid action string: {}", e));
-            return FFIErrorCode::InvalidUtf8 as c_int;
+        if binding.is_null() || action.is_null() {
+            set_last_error("Null binding or action provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
         }
-    };
 
-    match manager.register_hold(binding_str, action_str, callback) {
-        Ok(_) => FFIErrorCode::Success as c_int,
-        Err(e) => {
-            set_last_error(format!("Hotkey registration failed: {}", e));
-            FFIErrorCode::OperationFailed as c_int
+        let manager = &mut *(handle as *mut SimpleHotkeyManager);
+
+        let binding_str = match c_str_to_string(binding) {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(format!("Invalid binding string: {}", e));
+                return FFIErrorCode::InvalidUtf8 as c_int;
+            }
+        };
+
+        let action_str = match c_str_to_string(action) {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(format!("Invalid action string: {}", e));
+                return FFIErrorCode::InvalidUtf8 as c_int;
+            }
+        };
+
+        match manager.register_hold(binding_str, action_str, callback) {
+            Ok(_) => FFIErrorCode::Success as c_int,
+            Err(e) => {
+                set_last_error(format!("Hotkey registration failed: {}", e));
+                FFIErrorCode::OperationFailed as c_int
+            }
         }
     }
-}}
+}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn encre_hotkey_start(handle: HotkeyManagerHandle) -> c_int { unsafe {
-    if handle.is_null() {
-        set_last_error("Null hotkey manager handle provided".to_string());
-        return FFIErrorCode::NullPointer as c_int;
-    }
+pub unsafe extern "C" fn encre_hotkey_start(handle: HotkeyManagerHandle) -> c_int {
+    unsafe {
+        if handle.is_null() {
+            set_last_error("Null hotkey manager handle provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
+        }
 
-    let manager = &mut *(handle as *mut SimpleHotkeyManager);
+        let manager = &mut *(handle as *mut SimpleHotkeyManager);
 
-    match manager.start() {
-        Ok(_) => FFIErrorCode::Success as c_int,
-        Err(e) => {
-            set_last_error(format!("Failed to start hotkey listener: {}", e));
-            FFIErrorCode::OperationFailed as c_int
+        match manager.start() {
+            Ok(_) => FFIErrorCode::Success as c_int,
+            Err(e) => {
+                set_last_error(format!("Failed to start hotkey listener: {}", e));
+                FFIErrorCode::OperationFailed as c_int
+            }
         }
     }
-}}
+}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn encre_hotkey_stop(handle: HotkeyManagerHandle) -> c_int { unsafe {
-    if handle.is_null() {
-        set_last_error("Null hotkey manager handle provided".to_string());
-        return FFIErrorCode::NullPointer as c_int;
-    }
+pub unsafe extern "C" fn encre_hotkey_stop(handle: HotkeyManagerHandle) -> c_int {
+    unsafe {
+        if handle.is_null() {
+            set_last_error("Null hotkey manager handle provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
+        }
 
-    let manager = &mut *(handle as *mut SimpleHotkeyManager);
+        let manager = &mut *(handle as *mut SimpleHotkeyManager);
 
-    match manager.stop() {
-        Ok(_) => FFIErrorCode::Success as c_int,
-        Err(e) => {
-            set_last_error(format!("Failed to stop hotkey listener: {}", e));
-            FFIErrorCode::OperationFailed as c_int
+        match manager.stop() {
+            Ok(_) => FFIErrorCode::Success as c_int,
+            Err(e) => {
+                set_last_error(format!("Failed to stop hotkey listener: {}", e));
+                FFIErrorCode::OperationFailed as c_int
+            }
         }
     }
-}}
+}
 
 /// Null when the listener is running. The caller frees the string with `encre_free_string`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn encre_hotkey_listen_error(handle: HotkeyManagerHandle) -> *mut c_char { unsafe {
-    if handle.is_null() {
-        return std::ptr::null_mut();
-    }
+pub unsafe extern "C" fn encre_hotkey_listen_error(handle: HotkeyManagerHandle) -> *mut c_char {
+    unsafe {
+        if handle.is_null() {
+            return std::ptr::null_mut();
+        }
 
-    let manager = &*(handle as *mut SimpleHotkeyManager);
-    match manager.listen_error.lock().clone() {
-        Some(message) => string_to_c_str(message),
-        None => std::ptr::null_mut(),
+        let manager = &*(handle as *mut SimpleHotkeyManager);
+        match manager.listen_error.lock().clone() {
+            Some(message) => string_to_c_str(message),
+            None => std::ptr::null_mut(),
+        }
     }
-}}
+}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn encre_hotkey_manager_free(handle: HotkeyManagerHandle) { unsafe {
-    if !handle.is_null() {
-        let _ = Box::from_raw(handle as *mut SimpleHotkeyManager);
+pub unsafe extern "C" fn encre_hotkey_manager_free(handle: HotkeyManagerHandle) {
+    unsafe {
+        if !handle.is_null() {
+            let _ = Box::from_raw(handle as *mut SimpleHotkeyManager);
+        }
     }
-}}
+}
 
 #[cfg(test)]
 mod tests {
@@ -742,7 +760,9 @@ mod tests {
     static SERIAL: Mutex<()> = Mutex::new(());
 
     extern "C" fn record(action: *const c_char) {
-        let text = unsafe { CStr::from_ptr(action) }.to_string_lossy().into_owned();
+        let text = unsafe { CStr::from_ptr(action) }
+            .to_string_lossy()
+            .into_owned();
         FIRED.lock().push(text);
     }
 
@@ -874,7 +894,12 @@ mod tests {
                     Up(second),
                 ],
             );
-            assert_eq!(actions, vec!["revise_selection"], "releasing {:?} first", first);
+            assert_eq!(
+                actions,
+                vec!["revise_selection"],
+                "releasing {:?} first",
+                first
+            );
         }
     }
 
@@ -1014,18 +1039,17 @@ mod tests {
             ],
         );
 
-        assert!(actions.is_empty(), "ctrl+option+shift+space matched ctrl+option+space");
+        assert!(
+            actions.is_empty(),
+            "ctrl+option+shift+space matched ctrl+option+space"
+        );
     }
 
     #[test]
     fn the_right_hand_modifiers_are_the_same_modifiers() {
         let actions = fired(
             MAC,
-            &[
-                Down(Key::ControlRight),
-                Down(Key::AltGr),
-                Down(Key::Space),
-            ],
+            &[Down(Key::ControlRight), Down(Key::AltGr), Down(Key::Space)],
         );
 
         assert_eq!(actions, vec!["revise_all"]);
@@ -1067,17 +1091,21 @@ mod tests {
     #[test]
     fn a_binding_without_a_modifier_is_refused() {
         let mut manager = SimpleHotkeyManager::new();
-        assert!(manager
-            .register("space".to_string(), "revise_all".to_string(), record)
-            .is_err());
+        assert!(
+            manager
+                .register("space".to_string(), "revise_all".to_string(), record)
+                .is_err()
+        );
     }
 
     #[test]
     fn a_binding_that_names_two_keys_is_refused() {
         let mut manager = SimpleHotkeyManager::new();
-        assert!(manager
-            .register("ctrl+a+b".to_string(), "revise_all".to_string(), record)
-            .is_err());
+        assert!(
+            manager
+                .register("ctrl+a+b".to_string(), "revise_all".to_string(), record)
+                .is_err()
+        );
     }
 
     #[test]
@@ -1111,8 +1139,27 @@ mod tests {
     #[test]
     fn every_name_the_recorder_can_produce_is_a_key_the_listener_knows() {
         let recorded = [
-            "space", "return", "escape", "tab", "backspace", "delete", "insert", "home", "end",
-            "pageup", "pagedown", "left", "right", "up", "down", "a", "z", "0", "9", "f1", "f12",
+            "space",
+            "return",
+            "escape",
+            "tab",
+            "backspace",
+            "delete",
+            "insert",
+            "home",
+            "end",
+            "pageup",
+            "pagedown",
+            "left",
+            "right",
+            "up",
+            "down",
+            "a",
+            "z",
+            "0",
+            "9",
+            "f1",
+            "f12",
         ];
         for name in recorded {
             assert!(
@@ -1131,11 +1178,21 @@ mod tests {
         let mut manager = SimpleHotkeyManager::new();
 
         manager.start().expect("start");
-        let first = manager.listener_handle.as_ref().expect("a listener").thread().id();
+        let first = manager
+            .listener_handle
+            .as_ref()
+            .expect("a listener")
+            .thread()
+            .id();
 
         manager.stop().expect("stop");
         manager.start().expect("resume");
-        let second = manager.listener_handle.as_ref().expect("a listener").thread().id();
+        let second = manager
+            .listener_handle
+            .as_ref()
+            .expect("a listener")
+            .thread()
+            .id();
 
         assert_eq!(first, second, "resuming spawned a second listener");
     }

@@ -30,8 +30,9 @@ impl Engine {
             return Ok(());
         }
 
-        let model = transcribe_cpp::Model::load_with(path, &transcribe_cpp::ModelOptions::default())
-            .map_err(|e| anyhow!("failed to load {}: {e}", path.display()))?;
+        let model =
+            transcribe_cpp::Model::load_with(path, &transcribe_cpp::ModelOptions::default())
+                .map_err(|e| anyhow!("failed to load {}: {e}", path.display()))?;
         let session = model
             .session_with(&transcribe_cpp::SessionOptions::default())
             .map_err(|e| anyhow!("failed to open a session: {e}"))?;

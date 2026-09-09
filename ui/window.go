@@ -240,7 +240,7 @@ func (w *MainWindow) createContent() fyne.CanvasObject {
 	// Main layout
 	content := container.NewBorder(
 		nil, // top
-		container.NewBorder(nil, nil, w.unsavedLabel, saveBtn, statusBar), // bottom
+		container.NewBorder(nil, nil, nil, container.NewHBox(w.unsavedLabel, saveBtn), statusBar), // bottom
 		nil,  // left
 		nil,  // right
 		tabs, // center
@@ -254,9 +254,6 @@ func (w *MainWindow) markDirty() {
 		return
 	}
 	w.dirty = true
-	if w.statusBinding != nil {
-		w.statusBinding.Set("Unsaved changes")
-	}
 	if w.unsavedLabel != nil {
 		w.unsavedLabel.Show()
 		w.unsavedLabel.Refresh()

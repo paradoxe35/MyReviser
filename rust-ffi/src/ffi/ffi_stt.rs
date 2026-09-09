@@ -6,7 +6,9 @@ use std::thread;
 
 use parking_lot::Mutex;
 
-use crate::ffi::ffi_types::{FFIErrorCode, SttHandle, c_str_to_string, set_last_error, string_to_c_str};
+use crate::ffi::ffi_types::{
+    FFIErrorCode, SttHandle, c_str_to_string, set_last_error, string_to_c_str,
+};
 use crate::stt::audio::{self, Recorder};
 use crate::stt::engine::Engine;
 
