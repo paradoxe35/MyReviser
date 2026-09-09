@@ -7,6 +7,8 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/paradoxe35/encre/internal/config"
 	"github.com/paradoxe35/encre/internal/stt"
@@ -34,13 +36,19 @@ func (w *MainWindow) createSpeechSection() fyne.CanvasObject {
 	w.speechEngine.OnChanged = show
 	show(w.speechEngine.Selected)
 
+	// Options are set once and rarely revisited; the model list is what the
+	// screen is for. A dialog keeps the list full height.
+	options := widget.NewButtonWithIcon("", theme.SettingsIcon(), w.showSpeechOptions)
+	options.Importance = widget.LowImportance
+
+	w.buildSpeechOptions()
+
 	return container.NewBorder(
 		container.NewPadded(container.NewVBox(
 			w.speechHeader(),
-			container.NewBorder(nil, nil, widget.NewLabel("Transcribe"), nil, w.speechEngine),
+			container.NewBorder(nil, nil, widget.NewLabel("Transcribe"), options, w.speechEngine),
 		)),
-		container.NewVBox(widget.NewSeparator(), w.speechOptions()),
-		nil, nil,
+		nil, nil, nil,
 		container.NewStack(local, remote),
 	)
 }
@@ -161,7 +169,9 @@ func (w *MainWindow) applyPreset(name string) {
 	}
 }
 
-func (w *MainWindow) speechOptions() fyne.CanvasObject {
+// Built once so Save reads the same widgets whether or not the dialog was
+// ever opened.
+func (w *MainWindow) buildSpeechOptions() {
 	speech := w.config.Speech
 
 	w.microphone = NewMicrophonePicker(speech.InputDevice)
@@ -174,13 +184,23 @@ func (w *MainWindow) speechOptions() fyne.CanvasObject {
 
 	w.speechCleanUp = widget.NewCheck("Tidy the transcript with AI", nil)
 	w.speechCleanUp.SetChecked(speech.CleanUp)
+}
 
-	return widget.NewAccordion(widget.NewAccordionItem("Options", container.NewVBox(
-		widget.NewForm(widget.NewFormItem("Microphone", w.microphone)),
+func (w *MainWindow) showSpeechOptions() {
+	w.microphone.Refresh()
+
+	content := container.NewVBox(
+		widget.NewLabel("Microphone"),
+		w.microphone,
+		widget.NewSeparator(),
 		w.speechKeepLoaded,
 		w.speechWarmMic,
 		w.speechCleanUp,
-	)))
+	)
+
+	options := dialog.NewCustom("Speech options", "Done", content, w.Window)
+	options.Resize(fyne.NewSize(430, 330))
+	options.Show()
 }
 
 func (w *MainWindow) speechStore() *stt.Store {
