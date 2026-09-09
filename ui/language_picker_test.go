@@ -11,8 +11,8 @@ func TestLanguagePickerTracksValidSelection(t *testing.T) {
 	var changed string
 	picker.SetOnCodeChanged(func(code string) { changed = code })
 
-	picker.SetText("French")
-	picker.OnChanged(picker.Text)
+	picker.SetSelected(labelFor(language.Find("fr")))
+	picker.OnChanged(picker.Selected)
 
 	if got := picker.Code(); got != "fr" {
 		t.Fatalf("Code() = %q, want fr", got)
@@ -25,8 +25,8 @@ func TestLanguagePickerTracksValidSelection(t *testing.T) {
 func TestLanguagePickerExcludesOtherLanguage(t *testing.T) {
 	picker := NewLanguagePicker("en")
 	picker.SetExcludedCode("fr")
-	picker.SetText("French")
-	picker.OnChanged(picker.Text)
+	picker.SetSelected(labelFor(language.Find("fr")))
+	picker.OnChanged(picker.Selected)
 
 	if got := picker.Code(); got == language.Find("fr").Code {
 		t.Fatalf("excluded language was accepted: %q", got)

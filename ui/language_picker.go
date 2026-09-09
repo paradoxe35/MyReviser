@@ -7,11 +7,9 @@ import (
 	"github.com/paradoxe35/encre/internal/language"
 )
 
-// LanguagePicker is a text entry that filters the language registry as you
-// type. Fyne has no searchable Select, and a flat list of 78 entries in a
-// dropdown is still searchable through the entry field.
+// LanguagePicker is a standard dropdown backed by the language registry.
 type LanguagePicker struct {
-	*widget.SelectEntry
+	*widget.Select
 	code          string
 	excludedCode  string
 	onCodeChanged func(string)
@@ -19,12 +17,11 @@ type LanguagePicker struct {
 
 func NewLanguagePicker(code string) *LanguagePicker {
 	picker := &LanguagePicker{code: code}
-	picker.SelectEntry = widget.NewSelectEntry(labelsFor(language.All()))
-	picker.SetText(labelFor(language.Find(code)))
+	picker.Select = widget.NewSelect(labelsFor(language.All()), nil)
+	picker.SetCode(code)
 
-	picker.OnChanged = func(text string) {
-		picker.refreshOptions(text)
-		if match, ok := matchLanguage(text); ok &&
+	picker.OnChanged = func(label string) {
+		if match, ok := languageByLabel(label); ok &&
 			!strings.EqualFold(match.Code, picker.excludedCode) {
 			picker.code = match.Code
 			if picker.onCodeChanged != nil {
@@ -36,20 +33,14 @@ func NewLanguagePicker(code string) *LanguagePicker {
 	return picker
 }
 
-// Code returns the selected language, falling back to the last valid choice so
-// a half-typed query never clears the setting.
+// Code returns the selected language code.
 func (p *LanguagePicker) Code() string {
-	if match, ok := matchLanguage(p.Text); ok &&
-		!strings.EqualFold(match.Code, p.excludedCode) {
-		return match.Code
-	}
 	return p.code
 }
 
 func (p *LanguagePicker) SetCode(code string) {
 	p.code = code
-	p.SetText(labelFor(language.Find(code)))
-	p.refreshOptions(p.Text)
+	p.SetSelected(labelFor(language.Find(code)))
 }
 
 // SetExcludedCode removes the other side's selected language from this
@@ -64,17 +55,16 @@ func (p *LanguagePicker) SetExcludedCode(code string) {
 			}
 		}
 	}
-	p.refreshOptions(p.Text)
+	p.refreshOptions()
 }
 
 func (p *LanguagePicker) SetOnCodeChanged(callback func(string)) {
 	p.onCodeChanged = callback
 }
 
-func (p *LanguagePicker) refreshOptions(query string) {
-	matches := language.Search(query)
-	filtered := make([]language.Language, 0, len(matches))
-	for _, candidate := range matches {
+func (p *LanguagePicker) refreshOptions() {
+	filtered := make([]language.Language, 0, len(language.All()))
+	for _, candidate := range language.All() {
 		if !strings.EqualFold(candidate.Code, p.excludedCode) {
 			filtered = append(filtered, candidate)
 		}
@@ -98,21 +88,11 @@ func labelsFor(languages []language.Language) []string {
 	return labels
 }
 
-// matchLanguage resolves what the user typed, accepting either a full label
-// from the dropdown or a bare code or name typed by hand.
-func matchLanguage(text string) (language.Language, bool) {
+func languageByLabel(label string) (language.Language, bool) {
 	for _, l := range language.All() {
-		if labelFor(l) == text {
+		if labelFor(l) == label {
 			return l, true
 		}
-	}
-
-	if language.IsKnown(text) {
-		return language.Find(text), true
-	}
-
-	if matches := language.Search(text); len(matches) == 1 {
-		return matches[0], true
 	}
 	return language.Language{}, false
 }

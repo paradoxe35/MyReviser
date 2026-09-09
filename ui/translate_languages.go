@@ -33,8 +33,8 @@ func (w *MainWindow) translateLanguages() fyne.CanvasObject {
 
 	return container.NewVBox(
 		widget.NewForm(
-			widget.NewFormItem("Primary", w.primaryLanguage.SelectEntry),
-			widget.NewFormItem("Secondary", w.secondaryLanguage.SelectEntry),
+			widget.NewFormItem("Primary", w.primaryLanguage.Select),
+			widget.NewFormItem("Secondary", w.secondaryLanguage.Select),
 		),
 		container.NewBorder(nil, nil, nil, swap, explanation),
 	)
