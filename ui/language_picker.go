@@ -13,6 +13,7 @@ type LanguagePicker struct {
 	code          string
 	excludedCode  string
 	onCodeChanged func(string)
+	updating      bool
 }
 
 func NewLanguagePicker(code string) *LanguagePicker {
@@ -21,6 +22,9 @@ func NewLanguagePicker(code string) *LanguagePicker {
 	picker.SetCode(code)
 
 	picker.OnChanged = func(label string) {
+		if picker.updating {
+			return
+		}
 		if match, ok := languageByLabel(label); ok &&
 			!strings.EqualFold(match.Code, picker.excludedCode) {
 			picker.code = match.Code
@@ -39,8 +43,12 @@ func (p *LanguagePicker) Code() string {
 }
 
 func (p *LanguagePicker) SetCode(code string) {
+	p.updating = true
+	defer func() { p.updating = false }()
+
 	p.code = code
-	p.SetSelected(labelFor(language.Find(code)))
+	p.Selected = labelFor(language.Find(code))
+	p.Refresh()
 }
 
 // SetExcludedCode removes the other side's selected language from this
@@ -63,13 +71,19 @@ func (p *LanguagePicker) SetOnCodeChanged(callback func(string)) {
 }
 
 func (p *LanguagePicker) refreshOptions() {
+	p.updating = true
+	defer func() { p.updating = false }()
+
 	filtered := make([]language.Language, 0, len(language.All()))
 	for _, candidate := range language.All() {
 		if !strings.EqualFold(candidate.Code, p.excludedCode) {
 			filtered = append(filtered, candidate)
 		}
 	}
-	p.SetOptions(labelsFor(filtered))
+
+	p.Select.Options = labelsFor(filtered)
+	p.Select.Selected = labelFor(language.Find(p.code))
+	p.Select.Refresh()
 }
 
 func labelFor(l language.Language) string {

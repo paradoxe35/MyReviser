@@ -49,6 +49,8 @@ func TestLanguagePairCanSwapWithExclusions(t *testing.T) {
 		primary.SetExcludedCode(secondary.Code())
 		secondary.SetExcludedCode(primary.Code())
 	}
+	primary.SetOnCodeChanged(func(string) { updateExclusions() })
+	secondary.SetOnCodeChanged(func(string) { updateExclusions() })
 	updateExclusions()
 
 	first, second := primary.Code(), secondary.Code()
@@ -60,5 +62,23 @@ func TestLanguagePairCanSwapWithExclusions(t *testing.T) {
 
 	if primary.Code() != "en" || secondary.Code() != "fr" {
 		t.Fatalf("swapped pair = %q/%q, want en/fr", primary.Code(), secondary.Code())
+	}
+}
+
+func TestLanguagePairRestoresSavedCodesAndLabels(t *testing.T) {
+	primary := NewLanguagePicker("en")
+	secondary := NewLanguagePicker("zh-Hans")
+
+	primary.SetExcludedCode(secondary.Code())
+	secondary.SetExcludedCode(primary.Code())
+
+	if primary.Code() != "en" || secondary.Code() != "zh-Hans" {
+		t.Fatalf("saved pair changed to %q/%q", primary.Code(), secondary.Code())
+	}
+	if primary.Selected != labelFor(language.Find("en")) {
+		t.Errorf("primary label = %q, want English", primary.Selected)
+	}
+	if secondary.Selected != labelFor(language.Find("zh-Hans")) {
+		t.Errorf("secondary label = %q, want Chinese Simplified", secondary.Selected)
 	}
 }
