@@ -55,6 +55,7 @@ func (w *MainWindow) createHotkeysSection() fyne.CanvasObject {
 			w.hotkeyBindings[kind].Set(defaults[kind].Hotkey)
 			capture.UpdateFromBinding()
 		}
+		w.markDirty()
 	})
 
 	rows = append(rows,

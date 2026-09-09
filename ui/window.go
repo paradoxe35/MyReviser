@@ -234,7 +234,7 @@ func (w *MainWindow) createContent() fyne.CanvasObject {
 	saveBtn.Importance = widget.HighImportance
 	w.unsavedLabel = widget.NewLabel("Unsaved changes")
 	w.unsavedLabel.TextStyle.Bold = true
-	w.unsavedLabel.Importance = widget.DangerImportance
+	w.unsavedLabel.Importance = widget.WarningImportance
 	w.unsavedLabel.Hide()
 
 	// Main layout
@@ -254,6 +254,9 @@ func (w *MainWindow) markDirty() {
 		return
 	}
 	w.dirty = true
+	if w.statusBinding != nil {
+		w.statusBinding.Set("Unsaved changes")
+	}
 	if w.unsavedLabel != nil {
 		w.unsavedLabel.Show()
 		w.unsavedLabel.Refresh()
