@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, TryRecvError, channel};
 use std::thread;
 use std::time::Duration;
@@ -236,7 +237,13 @@ pub fn devices() -> (Vec<String>, Option<String>) {
     let host = host();
     let names = host
         .input_devices()
-        .map(|devices| devices.map(|d| d.to_string()).collect())
+        .map(|devices| {
+            let mut seen = HashSet::new();
+            devices
+                .map(|d| d.to_string())
+                .filter(|name| !name.is_empty() && seen.insert(name.clone()))
+                .collect()
+        })
         .unwrap_or_default();
     let default = host.default_input_device().map(|d| d.to_string());
     (names, default)

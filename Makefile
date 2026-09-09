@@ -143,19 +143,22 @@ help:
 # Install Dependencies
 # ============================================================================
 install-deps:
-	@echo "Installing dependencies for $(CURRENT_OS)..."
-	@echo "Installing Go dependencies..."
-	go mod download
-	go mod tidy
-	@echo "Installing Rust toolchain..."
-	@command -v rustc >/dev/null 2>&1 || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-	@echo "Installing Rust target: $(RUST_TARGET)..."
-	rustup target add $(RUST_TARGET)
+	@echo "Checking build dependencies for $(CURRENT_OS)..."
+	@command -v go >/dev/null 2>&1 || { echo "Missing: go"; exit 1; }
+	@command -v rustc >/dev/null 2>&1 || { echo "Missing: rustc"; exit 1; }
+	@command -v cargo >/dev/null 2>&1 || { echo "Missing: cargo"; exit 1; }
+ifeq ($(CURRENT_OS),linux)
+	@command -v cmake >/dev/null 2>&1 || { echo "Missing: cmake"; exit 1; }
+	@command -v pkg-config >/dev/null 2>&1 || { echo "Missing: pkg-config"; exit 1; }
+	@pkg-config --exists alsa || { echo "Missing ALSA development files: libasound2-dev"; exit 1; }
+	@test -f /usr/include/wayland-client-core.h || { echo "Missing Wayland development files: libwayland-dev"; exit 1; }
+endif
+ifeq ($(CURRENT_OS),linux)
 ifeq ($(CURRENT_OS),linux)
 	@echo "Installing musl-tools for static builds..."
 	@command -v musl-gcc >/dev/null 2>&1 || { \
 		echo "Please install musl-tools:"; \
-		echo "  sudo apt-get install musl-tools libx11-dev libxtst-dev"; \
+		echo "  sudo apt-get install musl-tools build-essential cmake pkg-config libasound2-dev libwayland-dev libx11-dev libxtst-dev"; \
 	}
 endif
 ifeq ($(CURRENT_OS),darwin)
@@ -165,7 +168,7 @@ ifeq ($(CURRENT_OS),darwin)
 		echo "  xcode-select --install"; \
 	}
 endif
-	@echo "Dependencies check complete!"
+	@echo "Build dependencies are available."
 
 # ============================================================================
 # Build Rust FFI Static Library
@@ -245,8 +248,8 @@ bundle-assets: ensure-fyne
 
 ensure-fyne:
 	@command -v fyne >/dev/null 2>&1 || { \
-		echo "Installing Fyne CLI..."; \
-		go install fyne.io/tools/cmd/fyne@latest; \
+		echo "Missing Fyne CLI. Install it with: go install fyne.io/tools/cmd/fyne@v1.7.2"; \
+		exit 1; \
 	}
 
 # ============================================================================
@@ -326,10 +329,7 @@ test-go:
 package-all: clean
 	@echo "Building for all platforms with Fyne..."
 	@mkdir -p $(BIN_DIR)
-	@command -v fyne >/dev/null 2>&1 || { \
-		echo "Installing Fyne CLI..."; \
-		go install go install fyne.io/tools/cmd/fyne@latest; \
-	}
+	$(MAKE) ensure-fyne
 
 	@echo ""
 	@echo "=== Building for Linux ==="
@@ -421,10 +421,10 @@ lint:
 	cd $(RUST_FFI_DIR) && cargo clippy -- -D warnings
 	@echo "Running Go lints..."
 	@command -v golangci-lint >/dev/null 2>&1 || { \
-		echo "Installing golangci-lint..."; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+		echo "Missing golangci-lint. Install it separately before running make lint."; \
+		exit 1; \
 	}
-	golangci-lint run
+	@golangci-lint run
 
 fmt:
 	@echo "Formatting Rust code..."
@@ -461,20 +461,11 @@ clean-go:
 # ============================================================================
 dev: build-rust
 	@echo "Starting development mode..."
-	@echo "Building Rust FFI library first (if needed)..."
-	@test -f $(LIB_DIR)/libencre_ffi.a || $(MAKE) build-rust
-	@echo "Running Go application with hot reload..."
 	@command -v air >/dev/null 2>&1 || { \
-		echo "Air not found. Installing air for hot reload..."; \
-		go install github.com/air-verse/air@latest; \
+		echo "Missing Air. Install it separately or use make dev-quick."; \
+		exit 1; \
 	}
-	@if command -v air >/dev/null 2>&1; then \
-		echo "Starting air for hot reload..."; \
-		CGO_ENABLED=1 air; \
-	else \
-		echo "Air installation failed. Running normally with: go run ."; \
-		CGO_ENABLED=1 go run .; \
-	fi
+	CGO_ENABLED=1 air
 
 # Quick dev run without hot reload
 dev-quick: build-rust

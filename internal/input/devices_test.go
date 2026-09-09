@@ -29,3 +29,14 @@ func TestParseDevicesHandlesNoMicrophone(t *testing.T) {
 		}
 	}
 }
+
+func TestParseDevicesRemovesDuplicateNames(t *testing.T) {
+	devices := parseDevices("Built-in Microphone\nBuilt-in Microphone\n*Built-in Microphone\nUSB Headset")
+
+	if len(devices) != 2 {
+		t.Fatalf("got %d devices, want 2: %+v", len(devices), devices)
+	}
+	if devices[0].Name != "Built-in Microphone" || !devices[0].IsDefault {
+		t.Errorf("duplicate default marker was not preserved: %+v", devices[0])
+	}
+}

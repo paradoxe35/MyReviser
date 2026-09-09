@@ -36,7 +36,6 @@ func (w *MainWindow) createActionsSection() fyne.CanvasObject {
 	}
 
 	accordion := widget.NewAccordion(items...)
-	accordion.Open(0)
 
 	w.mentionsCheck = widget.NewCheck("Enable @provider mentions", nil)
 	w.mentionsCheck.SetChecked(w.config.EnableProviderMentions)
