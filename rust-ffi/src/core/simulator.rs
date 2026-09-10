@@ -42,7 +42,7 @@ mod macos_native {
     const POLL_INTERVAL: Duration = Duration::from_millis(15);
     const KEY_HOLD: Duration = Duration::from_millis(10);
 
-    extern "C" {
+    unsafe extern "C" {
         fn CGEventCreateKeyboardEvent(
             source: *mut c_void,
             virtual_key: u16,
