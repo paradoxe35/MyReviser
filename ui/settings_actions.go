@@ -37,8 +37,7 @@ func (w *MainWindow) createActionsSection() fyne.CanvasObject {
 
 	accordion := widget.NewAccordion(items...)
 
-	w.mentionsCheck = widget.NewCheck("Enable @provider mentions", nil)
-	w.mentionsCheck.SetChecked(w.config.EnableProviderMentions)
+	w.mentionsCheck = w.dirtyCheck("Enable @provider mentions", w.config.EnableProviderMentions)
 
 	mentionsHelp := widget.NewLabel(
 		"Start a selection with @provider to run that one action on it, " +
@@ -57,18 +56,15 @@ func (w *MainWindow) newOperationEditor(op config.Operation) *operationEditor {
 	operation := w.config.Operation(op)
 
 	editor := &operationEditor{
-		prompt:   widget.NewMultiLineEntry(),
-		limit:    widget.NewEntry(),
+		prompt:   w.dirtyMultiLineEntry(),
+		limit:    w.dirtyEntry(),
 		timeout:  widget.NewSlider(5, 300),
-		provider: widget.NewSelect(w.providerOptions(), func(string) { w.markDirty() }),
+		provider: w.dirtySelect(w.providerOptions(), nil),
 	}
-	editor.prompt.OnChanged = func(string) { w.markDirty() }
-	editor.limit.OnChanged = func(string) { w.markDirty() }
-
-	editor.prompt.SetText(operation.SystemPrompt)
-	// Show the built-in prompt greyed out rather than hiding it behind an empty
+	// The built-in prompt shows greyed out rather than hiding behind an empty
 	// field: it is what actually runs, and people edit from it.
 	editor.prompt.SetPlaceHolder(config.DefaultPrompt(op))
+	editor.prompt.SetText(operation.SystemPrompt)
 	editor.prompt.Wrapping = fyne.TextWrapWord
 	editor.prompt.SetMinRowsVisible(5)
 

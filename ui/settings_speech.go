@@ -17,25 +17,21 @@ import (
 const remoteEngineLabel = "Hosted service"
 
 func (w *MainWindow) createSpeechSection() fyne.CanvasObject {
-	w.speechEngine = widget.NewSelect(
-		[]string{"On this computer", remoteEngineLabel}, nil)
-	w.speechEngine.SetSelected(engineLabel(w.config.Speech.Engine))
-
 	local := w.localSpeechPane()
 	remote := w.remoteSpeechPane()
 
-	show := func(label string) {
-		if label == remoteEngineLabel {
-			local.Hide()
-			remote.Show()
-		} else {
-			remote.Hide()
-			local.Show()
-		}
-	}
-	w.speechEngine.OnChanged = func(label string) { show(label); w.markDirty() }
-	show(w.speechEngine.Selected)
-	w.initializing = false
+	w.speechEngine = w.dirtySelect(
+		[]string{"On this computer", remoteEngineLabel},
+		func(label string) {
+			if label == remoteEngineLabel {
+				local.Hide()
+				remote.Show()
+			} else {
+				remote.Hide()
+				local.Show()
+			}
+		})
+	w.speechEngine.SetSelected(engineLabel(w.config.Speech.Engine))
 
 	// Options are set once and rarely revisited; the model list is what the
 	// screen is for. A dialog keeps the list full height.
@@ -117,24 +113,18 @@ func (w *MainWindow) refreshCatalog() {
 func (w *MainWindow) remoteSpeechPane() *fyne.Container {
 	speech := w.config.Speech
 
-	w.speechRemoteModel = widget.NewSelectEntry(nil)
-	w.speechRemoteModel.OnChanged = func(string) { w.markDirty() }
+	w.speechRemoteModel = w.dirtySelectEntry()
 	w.speechRemoteModel.SetText(speech.RemoteModel)
 
-	w.speechRemoteURL = widget.NewEntry()
-	w.speechRemoteURL.OnChanged = func(string) { w.markDirty() }
+	w.speechRemoteURL = w.dirtyEntry()
 	w.speechRemoteURL.SetPlaceHolder("https://api.example.com/v1")
 	w.speechRemoteURL.SetText(speech.RemoteBaseURL)
 
-	w.speechRemoteKey = widget.NewPasswordEntry()
-	w.speechRemoteKey.OnChanged = func(string) { w.markDirty() }
+	w.speechRemoteKey = w.dirtyPasswordEntry()
 	w.speechRemoteKey.SetPlaceHolder("API key")
 	w.speechRemoteKey.SetText(speech.RemoteAPIKey)
 
-	w.speechRemote = widget.NewSelect(stt.PresetNames(), func(name string) {
-		w.applyPreset(name)
-		w.markDirty()
-	})
+	w.speechRemote = w.dirtySelect(stt.PresetNames(), w.applyPreset)
 	if preset, ok := stt.FindPreset(speech.RemoteProvider); ok {
 		w.speechRemote.SetSelected(preset.Name)
 	} else {
@@ -186,13 +176,8 @@ func (w *MainWindow) buildSpeechOptions() {
 	w.microphone = NewMicrophonePicker(speech.InputDevice)
 	w.microphone.onChanged = w.markDirty
 
-	w.speechKeepLoaded = widget.NewCheck("Keep the model in memory", nil)
-	w.speechKeepLoaded.OnChanged = func(bool) { w.markDirty() }
-	w.speechKeepLoaded.SetChecked(speech.KeepModelLoaded)
-
-	w.speechCleanUp = widget.NewCheck("Tidy the transcript with AI", nil)
-	w.speechCleanUp.OnChanged = func(bool) { w.markDirty() }
-	w.speechCleanUp.SetChecked(speech.CleanUp)
+	w.speechKeepLoaded = w.dirtyCheck("Keep the model in memory", speech.KeepModelLoaded)
+	w.speechCleanUp = w.dirtyCheck("Tidy the transcript with AI", speech.CleanUp)
 }
 
 func (w *MainWindow) showSpeechOptions() {

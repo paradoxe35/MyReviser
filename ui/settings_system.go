@@ -18,14 +18,10 @@ func (w *MainWindow) createSystemSection() fyne.CanvasObject {
 	themeLabel := widget.NewLabel("Theme:")
 	themeLabel.TextStyle.Bold = true
 
-	themeSelect := widget.NewSelect(
-		[]string{"auto", "light", "dark"},
-		func(value string) {
-			w.themeBinding.Set(value)
-			w.applyTheme(value)
-			w.markDirty()
-		},
-	)
+	themeSelect := w.dirtySelect([]string{"auto", "light", "dark"}, func(value string) {
+		w.themeBinding.Set(value)
+		w.applyTheme(value)
+	})
 
 	// Set initial selection
 	currentTheme, _ := w.themeBinding.Get()
@@ -35,19 +31,14 @@ func (w *MainWindow) createSystemSection() fyne.CanvasObject {
 	themeDesc := widget.NewLabel("Auto: Follow system theme\nLight: Always use light theme\nDark: Always use dark theme")
 	themeDesc.Wrapping = fyne.TextWrapWord
 
-	// Start Minimized checkbox
-	startMinimizedCheck := widget.NewCheck("Start minimized to system tray", func(checked bool) {
-		w.startMinimizedBinding.Set(checked)
-		w.markDirty()
-	})
-	startMinimizedCheck.Bind(w.startMinimizedBinding)
+	// Start Minimized / Start on Login checkboxes. Bind installs its own
+	// OnChanged that writes the binding, so dirty tracking goes on the binding
+	// itself: a callback on the check would be overwritten.
+	w.startMinimizedCheck = widget.NewCheck("Start minimized to system tray", nil)
+	w.startMinimizedCheck.Bind(w.startMinimizedBinding)
 
-	// Start on Login checkbox
-	startOnLoginCheck := widget.NewCheck("Start on login", func(checked bool) {
-		w.startOnLoginBinding.Set(checked)
-		w.markDirty()
-	})
-	startOnLoginCheck.Bind(w.startOnLoginBinding)
+	w.startOnLoginCheck = widget.NewCheck("Start on login", nil)
+	w.startOnLoginCheck.Bind(w.startOnLoginBinding)
 
 	// Version display (only show for production builds)
 	var versionContainer *fyne.Container
@@ -66,7 +57,7 @@ func (w *MainWindow) createSystemSection() fyne.CanvasObject {
 	formItems := []fyne.CanvasObject{
 		container.NewPadded(container.NewVBox(themeLabel, themeSelect, themeDesc)),
 		widget.NewSeparator(),
-		container.NewPadded(container.NewVBox(startMinimizedCheck, startOnLoginCheck)),
+		container.NewPadded(container.NewVBox(w.startMinimizedCheck, w.startOnLoginCheck)),
 	}
 
 	// Add version if production build

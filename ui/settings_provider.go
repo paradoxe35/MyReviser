@@ -70,6 +70,7 @@ func (w *MainWindow) createProviderSelectionSection(selected string) fyne.Canvas
 
 			w.providerBinding.Set(value)
 			w.loadProviderSettings(value)
+			w.markDirty()
 		},
 	)
 	w.providerSelect.SetSelected(selected)
@@ -93,27 +94,24 @@ func (w *MainWindow) createProviderConfigSection() fyne.CanvasObject {
 	// API Key section
 	apiKeyLabel := widget.NewLabel("API Key:")
 	apiKeyLabel.TextStyle.Bold = true
-	apiKeyEntry := widget.NewPasswordEntry()
+	apiKeyEntry := w.dirtyPasswordEntry()
 	apiKeyEntry.Bind(w.apiKeyBinding)
-	apiKeyEntry.OnChanged = func(string) { w.markDirty() }
 	apiKeyEntry.PlaceHolder = "Enter your API key"
 	apiKeyEntry.Validator = nil // Disable validation icon
 
 	// Model section
 	modelLabel := widget.NewLabel("Model:")
 	modelLabel.TextStyle.Bold = true
-	modelEntry := widget.NewEntry()
+	modelEntry := w.dirtyEntry()
 	modelEntry.Bind(w.modelBinding)
-	modelEntry.OnChanged = func(string) { w.markDirty() }
 	modelEntry.PlaceHolder = "e.g., gpt-4o"
 	modelEntry.Validator = nil // Disable validation icon
 
 	// Base URL section (for custom endpoints - only for OpenAI)
 	baseURLLabel := widget.NewLabel("Base URL:")
 	baseURLLabel.TextStyle.Bold = true
-	w.baseURLEntry = widget.NewEntry()
+	w.baseURLEntry = w.dirtyEntry()
 	w.baseURLEntry.Bind(w.baseURLBinding)
-	w.baseURLEntry.OnChanged = func(string) { w.markDirty() }
 	w.baseURLEntry.PlaceHolder = "https://api.openai.com/v1 (optional)"
 	w.baseURLEntry.Validator = nil // Disable validation icon
 

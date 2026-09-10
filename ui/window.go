@@ -41,6 +41,8 @@ type MainWindow struct {
 	statusBinding         binding.String
 	startMinimizedBinding binding.Bool
 	startOnLoginBinding   binding.Bool
+	startMinimizedCheck   *widget.Check
+	startOnLoginCheck     *widget.Check
 	themeBinding          binding.String
 	unsavedLabel          *widget.Label
 	dirty                 bool
@@ -153,6 +155,11 @@ func (w *MainWindow) initBindings() {
 	autoStart := platform.GetAutoStart()
 	actualStartOnLogin := autoStart.IsEnabled()
 	w.startOnLoginBinding.Set(actualStartOnLogin)
+
+	// Checkboxes write through these bindings, so one listener per binding
+	// covers both directions without being overwritten by Bind.
+	w.startMinimizedBinding.AddListener(binding.NewDataListener(w.markDirty))
+	w.startOnLoginBinding.AddListener(binding.NewDataListener(w.markDirty))
 
 	// Update config if out of sync
 	if w.config.Appearance.StartOnLogin != actualStartOnLogin {
