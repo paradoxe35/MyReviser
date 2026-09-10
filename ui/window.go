@@ -44,6 +44,7 @@ type MainWindow struct {
 	themeBinding          binding.String
 	unsavedLabel          *widget.Label
 	dirty                 bool
+	initializing          bool
 
 	hotkeyBindings   map[config.ActionKind]binding.String
 	operationEditors map[config.Operation]*operationEditor
@@ -94,6 +95,7 @@ func NewMainWindow(app fyne.App, cfg *config.Config, hotkeyManager *input.FFIHot
 		hotkeyManager:    hotkeyManager,
 		permissionPrompt: prompt,
 	}
+	mw.initializing = true
 
 	// Set restart button callback
 	prompt.restartButton.OnTapped = mw.restartApplication
@@ -114,6 +116,7 @@ func NewMainWindow(app fyne.App, cfg *config.Config, hotkeyManager *input.FFIHot
 	mw.rootContainer = container.NewStack(mw.mainContent, mw.permissionContainer)
 	window.SetContent(mw.rootContainer)
 	mw.showMainContent()
+	mw.initializing = false
 
 	return mw
 }
@@ -251,6 +254,9 @@ func (w *MainWindow) createContent() fyne.CanvasObject {
 
 func (w *MainWindow) markDirty() {
 	if w.dirty {
+		return
+	}
+	if w.initializing {
 		return
 	}
 	w.dirty = true

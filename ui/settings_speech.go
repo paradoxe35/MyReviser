@@ -35,6 +35,7 @@ func (w *MainWindow) createSpeechSection() fyne.CanvasObject {
 	}
 	w.speechEngine.OnChanged = func(label string) { show(label); w.markDirty() }
 	show(w.speechEngine.Selected)
+	w.initializing = false
 
 	// Options are set once and rarely revisited; the model list is what the
 	// screen is for. A dialog keeps the list full height.

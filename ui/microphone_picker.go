@@ -15,10 +15,12 @@ const systemDefaultDevice = "System default"
 type MicrophonePicker struct {
 	widget.BaseWidget
 
-	selector  *widget.Select
-	status    *widget.Label
-	saved     string
-	onChanged func()
+	selector   *widget.Select
+	status     *widget.Label
+	saved      string
+	chosen     string
+	refreshing bool
+	onChanged  func()
 
 	// Injected so the empty and unplugged cases can be tested without hardware.
 	list func() []input.Device
@@ -31,6 +33,10 @@ func NewMicrophonePicker(saved string) *MicrophonePicker {
 func newMicrophonePicker(saved string, list func() []input.Device) *MicrophonePicker {
 	p := &MicrophonePicker{}
 	p.selector = widget.NewSelect(nil, func(string) {
+		if p.refreshing {
+			return
+		}
+		p.chosen = p.selector.Selected
 		if p.onChanged != nil {
 			p.onChanged()
 		}
@@ -39,6 +45,7 @@ func newMicrophonePicker(saved string, list func() []input.Device) *MicrophonePi
 		selector: p.selector,
 		status:   widget.NewLabel(""),
 		saved:    saved,
+		chosen:   saved,
 		list:     list,
 	}
 	p.status.TextStyle.Italic = true
@@ -50,15 +57,28 @@ func newMicrophonePicker(saved string, list func() []input.Device) *MicrophonePi
 
 // Device returns the chosen name, empty for the system default.
 func (p *MicrophonePicker) Device() string {
-	if p.selector.Selected == systemDefaultDevice {
+	if p.chosen == systemDefaultDevice {
 		return ""
 	}
-	return p.selector.Selected
+	return p.chosen
 }
 
-// Refresh re-reads the device list, keeping the current choice if it survives.
+// Refresh re-reads the device list, keeping the in-progress choice if it survives,
+// falling back to the saved device, then to the system default.
 func (p *MicrophonePicker) Refresh() {
+	p.refreshing = true
+	defer func() { p.refreshing = false }()
+
 	devices := p.list()
+
+	// The in-progress choice survives rescans; when it is gone from hardware
+	// the saved setting takes over, and a missing-but-saved device stays
+	// selected and listed rather than silently reassigning.
+	wanted := p.chosen
+	if _, ok := p.find(devices, wanted); !ok {
+		wanted = p.saved
+	}
+	p.chosen = wanted
 
 	options := []string{systemDefaultDevice}
 	present := false
@@ -68,9 +88,10 @@ func (p *MicrophonePicker) Refresh() {
 			present = true
 		}
 	}
-
 	// Keep a missing device visible rather than dropping the user's choice.
-	if p.saved != "" && !present {
+	if p.chosen != "" && !p.inOptions(options, p.chosen) {
+		options = append(options, p.chosen)
+	} else if p.saved != "" && !present && !p.inOptions(options, p.saved) {
 		options = append(options, p.saved)
 	}
 
@@ -81,11 +102,32 @@ func (p *MicrophonePicker) Refresh() {
 	p.BaseWidget.Refresh()
 }
 
+func (p *MicrophonePicker) find(devices []input.Device, name string) (input.Device, bool) {
+	if name == "" {
+		return input.Device{}, true
+	}
+	for _, device := range devices {
+		if device.Name == name {
+			return device, true
+		}
+	}
+	return input.Device{}, false
+}
+
+func (p *MicrophonePicker) inOptions(options []string, name string) bool {
+	for _, option := range options {
+		if option == name {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *MicrophonePicker) selection() string {
-	if p.saved == "" {
+	if p.chosen == "" {
 		return systemDefaultDevice
 	}
-	return p.saved
+	return p.chosen
 }
 
 func (p *MicrophonePicker) describe(devices []input.Device, present bool) {
