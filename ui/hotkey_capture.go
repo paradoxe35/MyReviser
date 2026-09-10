@@ -27,6 +27,7 @@ type HotkeyCapture struct {
 	window         fyne.Window      // Reference to parent window for focus
 	onCaptureStart func()           // Callback when capture starts
 	onCaptureStop  func()           // Callback when capture stops
+	onChanged      func()           // Callback when a binding changes
 	siblings       []*HotkeyCapture // Other capture widgets to disable during capture
 
 	isCapturing bool
@@ -100,7 +101,7 @@ func NewHotkeyCapture(binding binding.String, placeholder string) *HotkeyCapture
 
 	// Create entry for keyboard capture (hidden by default)
 	h.entry = &captureEntry{parent: h}
-	h.entry.PlaceHolder = "Press keys... (ESC to cancel, Enter to save)"
+	h.entry.PlaceHolder = "Press keys in sequence (ESC to cancel, Enter to save)"
 	h.entry.TextStyle.Bold = true
 	h.entry.TextStyle.Monospace = true
 	h.entry.Hide() // Hidden until capture starts
@@ -370,12 +371,18 @@ func (h *HotkeyCapture) saveHotkey() bool {
 
 	// Save to binding
 	h.binding.Set(hotkeyStr)
+	if h.onChanged != nil {
+		h.onChanged()
+	}
 	return true
 }
 
 // clearHotkey clears the current hotkey
 func (h *HotkeyCapture) clearHotkey() {
 	h.binding.Set("")
+	if h.onChanged != nil {
+		h.onChanged()
+	}
 	h.displayLabel.SetText("Click 'Capture' to set hotkey")
 }
 

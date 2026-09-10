@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 )
 
 // Provider defines the interface for AI text revision providers
@@ -35,6 +34,15 @@ func (f *ProviderFactory) Register(name string, provider Provider) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.providers[name] = provider
+}
+
+// Reset drops every cached provider. Settings changes invalidate them all:
+// a stale entry would keep using the previous API key or model.
+func (f *ProviderFactory) Reset() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.providers = make(map[string]Provider)
+	f.current = nil
 }
 
 // Get returns a provider by name
@@ -68,30 +76,4 @@ func (f *ProviderFactory) GetCurrent() Provider {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.current
-}
-
-// ReviseWithTimeout revises text with a timeout
-func ReviseWithTimeout(ctx context.Context, provider Provider, text, systemPrompt string, timeout time.Duration) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	resultChan := make(chan struct {
-		text string
-		err  error
-	}, 1)
-
-	go func() {
-		revised, err := provider.ReviseText(ctx, text, systemPrompt)
-		resultChan <- struct {
-			text string
-			err  error
-		}{revised, err}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return "", fmt.Errorf("revision timeout: %w", ctx.Err())
-	case result := <-resultChan:
-		return result.text, result.err
-	}
 }

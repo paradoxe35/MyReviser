@@ -8,16 +8,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/paradoxe35/myreviser/internal/logger"
+	"github.com/paradoxe35/encre/internal/logger"
 )
 
 // Handover lets a launch that lost the instance lock reach the copy already running.
 //
 // The lock decides which process runs; this decides what the other one does. Without it, clicking
-// the launcher while MyReviser sits in the tray appears to do nothing at all.
+// the launcher while Encre sits in the tray appears to do nothing at all.
 //
 // Loopback only: it is the whole of what is needed, and it keeps macOS from asking whether
-// MyReviser may accept incoming connections.
+// Encre may accept incoming connections.
 type Handover struct {
 	portPath string
 	listener net.Listener

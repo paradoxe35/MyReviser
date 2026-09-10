@@ -3,12 +3,12 @@ package ui
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
-	"github.com/paradoxe35/myreviser/internal/logger"
+	"github.com/paradoxe35/encre/internal/logger"
 )
 
 func SetupSystemTray(desk desktop.App, mainWindow *MainWindow, onQuit func() error) {
 	// Every item touches the UI, and a tray callback does not run on Fyne's thread.
-	menu := fyne.NewMenu("MyReviser",
+	menu := fyne.NewMenu("Encre",
 		fyne.NewMenuItem("Settings", func() {
 			fyne.Do(mainWindow.ShowWindow)
 		}),

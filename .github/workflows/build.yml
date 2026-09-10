@@ -65,7 +65,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            build-essential \
+            cmake \
+            libasound2-dev \
             libgl1-mesa-dev \
+            libwayland-dev \
             xorg-dev \
             libx11-dev \
             libxkbfile-dev \
@@ -98,7 +102,7 @@ jobs:
           cargo build --release
           cd ..
           mkdir -p lib
-          cp rust-ffi/target/release/libmyreviser_ffi.a lib/
+          cp rust-ffi/target/release/libencre_ffi.a lib/
 
       - name: Build application with Fyne
         env:
@@ -116,37 +120,37 @@ jobs:
 
           echo "Building version: ${VERSION} (build: ${BUILD_NUMBER})"
 
-          # Use fyne package with version info (creates MyReviser.tar.xz for Linux)
-          fyne package --icon assets/icon.png --name MyReviser --release \
+          # Use fyne package with version info (creates Encre.tar.xz for Linux)
+          fyne package --icon assets/icon.png --name Encre --release \
             --app-version "${VERSION}" \
             --app-build "${BUILD_NUMBER}"
 
           # The CLI wraps the tree in a directory named after the binary, which older versions did
           # not, so the binary is located by its path inside the archive rather than at a fixed one.
           mkdir -p pkg
-          tar -xf MyReviser.tar.xz -C pkg
+          tar -xf Encre.tar.xz -C pkg
 
           BINARY=$(find pkg -path "*/usr/local/bin/*" -type f -perm -u+x | head -n 1)
           if [ -z "$BINARY" ]; then
-            echo "Error: no binary in MyReviser.tar.xz"
-            tar -tf MyReviser.tar.xz
+            echo "Error: no binary in Encre.tar.xz"
+            tar -tf Encre.tar.xz
             exit 1
           fi
 
           echo "Found binary: $BINARY"
-          mv "$BINARY" myreviser-linux-${{ matrix.arch }}
+          mv "$BINARY" encre-linux-${{ matrix.arch }}
 
-          rm -rf pkg MyReviser.tar.xz
+          rm -rf pkg Encre.tar.xz
 
       - name: Create portable archive
         run: |
           mkdir -p dist/portable
-          cp myreviser-linux-${{ matrix.arch }} dist/portable/myreviser
-          chmod +x dist/portable/myreviser
+          cp encre-linux-${{ matrix.arch }} dist/portable/encre
+          chmod +x dist/portable/encre
           if [ -f assets/icon.png ]; then
             cp assets/icon.png dist/portable/
           fi
-          tar -czf myreviser-linux-${{ matrix.arch }}.tar.gz -C dist/portable .
+          tar -czf encre-linux-${{ matrix.arch }}.tar.gz -C dist/portable .
 
       - name: Create AppImage
         if: matrix.arch == 'amd64'
@@ -161,34 +165,34 @@ jobs:
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
 
           # Copy binary
-          cp myreviser-linux-${{ matrix.arch }} AppDir/usr/bin/myreviser
-          chmod +x AppDir/usr/bin/myreviser
+          cp encre-linux-${{ matrix.arch }} AppDir/usr/bin/encre
+          chmod +x AppDir/usr/bin/encre
 
           # Copy icon to proper location
           if [ -f assets/icon.png ]; then
-            cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/myreviser.png
+            cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/encre.png
             # Also copy to root for compatibility
-            cp assets/icon.png AppDir/myreviser.png
+            cp assets/icon.png AppDir/encre.png
           fi
 
           # Create desktop entry in proper location
-          cat > AppDir/usr/share/applications/myreviser.desktop <<'EOF'
+          cat > AppDir/usr/share/applications/encre.desktop <<'EOF'
           [Desktop Entry]
-          Name=MyReviser
+          Name=Encre
           GenericName=Text Revision Tool
           Comment=AI-powered text revision tool
-          Exec=myreviser
-          Icon=myreviser
+          Exec=encre
+          Icon=encre
           Terminal=false
           Type=Application
           Categories=Utility;Office;
           Keywords=text;revision;ai;
           StartupNotify=true
-          StartupWMClass=MyReviser Settings
+          StartupWMClass=Encre Settings
           EOF
 
           # Also copy desktop file to root (required by linuxdeploy)
-          cp AppDir/usr/share/applications/myreviser.desktop AppDir/myreviser.desktop
+          cp AppDir/usr/share/applications/encre.desktop AppDir/encre.desktop
 
           # Create AppImage with proper desktop integration
           ARCH=x86_64 ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
@@ -197,8 +201,8 @@ jobs:
           APPIMAGE_FILE=$(find . -maxdepth 1 -name "*.AppImage" -type f ! -name "linuxdeploy-*" | head -n 1)
           if [ -n "$APPIMAGE_FILE" ]; then
             echo "Found AppImage: $APPIMAGE_FILE"
-            mv "$APPIMAGE_FILE" myreviser-linux-${{ matrix.arch }}.AppImage
-            chmod +x myreviser-linux-${{ matrix.arch }}.AppImage
+            mv "$APPIMAGE_FILE" encre-linux-${{ matrix.arch }}.AppImage
+            chmod +x encre-linux-${{ matrix.arch }}.AppImage
           else
             echo "Error: AppImage file not found"
             echo "Available files:"
@@ -214,8 +218,8 @@ jobs:
           mkdir -p dist/deb/usr/share/icons/hicolor/256x256/apps
 
           # Copy binary
-          cp myreviser-linux-${{ matrix.arch }} dist/deb/usr/local/bin/myreviser
-          chmod +x dist/deb/usr/local/bin/myreviser
+          cp encre-linux-${{ matrix.arch }} dist/deb/usr/local/bin/encre
+          chmod +x dist/deb/usr/local/bin/encre
 
           # Sanitize version for Debian (must start with digit)
           RAW_VERSION="${GITHUB_REF_NAME#v}"
@@ -233,16 +237,16 @@ jobs:
 
           # Create control file
           cat > dist/deb/DEBIAN/control <<EOF
-          Package: myreviser
+          Package: encre
           Version: $DEB_VERSION
           Section: text
           Priority: optional
           Architecture: ${{ matrix.arch }}
           Maintainer: Paradoxe Ng <contact@pngwasi.me>
-          Homepage: https://github.com/paradoxe35/myreviser
+          Homepage: https://github.com/paradoxe35/encre
           Depends: libc6, libgl1, libx11-6, libxext6, libxcb1, libxinerama1, libxtst6, libxdo3, libxkbcommon0, libxi6, libxcursor1, libxrandr2, libxrender1, libxfixes3, libxxf86vm1
           Description: AI-powered text revision tool with Rust FFI
-           MyReviser is a system tray application that provides global hotkeys
+           Encre is a system tray application that provides global hotkeys
            for instant text enhancement using AI providers (OpenAI, Claude, Gemini).
            .
            Features:
@@ -260,50 +264,50 @@ jobs:
           # Copy icon if exists
           if [ -f assets/icon.png ]; then
             mkdir -p dist/deb/usr/share/icons/hicolor/256x256/apps
-            cp assets/icon.png dist/deb/usr/share/icons/hicolor/256x256/apps/myreviser.png
+            cp assets/icon.png dist/deb/usr/share/icons/hicolor/256x256/apps/encre.png
 
             # Also copy to pixmaps as fallback
             mkdir -p dist/deb/usr/share/pixmaps
-            cp assets/icon.png dist/deb/usr/share/pixmaps/myreviser.png
+            cp assets/icon.png dist/deb/usr/share/pixmaps/encre.png
           fi
 
           # Create desktop entry
-          cat > dist/deb/usr/share/applications/myreviser.desktop <<EOF
+          cat > dist/deb/usr/share/applications/encre.desktop <<EOF
           [Desktop Entry]
-          Name=MyReviser
+          Name=Encre
           GenericName=Text Revision Tool
           Comment=AI-powered text revision tool
-          Exec=/usr/local/bin/myreviser
-          Icon=myreviser
+          Exec=/usr/local/bin/encre
+          Icon=encre
           Terminal=false
           Type=Application
           Categories=Utility;Office;
           Keywords=text;revision;ai;
           StartupNotify=true
-          StartupWMClass=MyReviser Settings
+          StartupWMClass=Encre Settings
           EOF
 
           # Build deb package
-          dpkg-deb --build dist/deb myreviser-linux-${{ matrix.arch }}.deb
+          dpkg-deb --build dist/deb encre-linux-${{ matrix.arch }}.deb
 
       - name: Upload portable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: myreviser-linux-${{ matrix.arch }}-portable
-          path: myreviser-linux-${{ matrix.arch }}.tar.gz
+          name: encre-linux-${{ matrix.arch }}-portable
+          path: encre-linux-${{ matrix.arch }}.tar.gz
 
       - name: Upload AppImage artifact
         if: matrix.arch == 'amd64'
         uses: actions/upload-artifact@v4
         with:
-          name: myreviser-linux-${{ matrix.arch }}-appimage
-          path: myreviser-linux-${{ matrix.arch }}.AppImage
+          name: encre-linux-${{ matrix.arch }}-appimage
+          path: encre-linux-${{ matrix.arch }}.AppImage
 
       - name: Upload deb artifact
         uses: actions/upload-artifact@v4
         with:
-          name: myreviser-linux-${{ matrix.arch }}-deb
-          path: myreviser-linux-${{ matrix.arch }}.deb
+          name: encre-linux-${{ matrix.arch }}-deb
+          path: encre-linux-${{ matrix.arch }}.deb
 
   build-windows:
     strategy:
@@ -368,7 +372,7 @@ jobs:
           cargo build --release --target x86_64-pc-windows-gnu
           cd ..
           New-Item -ItemType Directory -Force -Path lib
-          Copy-Item rust-ffi\target\x86_64-pc-windows-gnu\release\libmyreviser_ffi.a lib\
+          Copy-Item rust-ffi\target\x86_64-pc-windows-gnu\release\libencre_ffi.a lib\
 
       - name: Build application with Fyne
         env:
@@ -387,13 +391,13 @@ jobs:
           Write-Host "Building version: $VERSION (build: $BUILD_NUMBER)"
 
           # Use fyne package with version info
-          fyne package --icon assets/icon.ico --name MyReviser --release `
+          fyne package --icon assets/icon.ico --name Encre --release `
             --app-version "$VERSION" `
             --app-build "$BUILD_NUMBER"
 
-          # fyne package creates MyReviser.exe, rename it
-          if (Test-Path "MyReviser.exe") {
-            Move-Item MyReviser.exe myreviser-windows-${{ matrix.arch }}.exe
+          # fyne package creates Encre.exe, rename it
+          if (Test-Path "Encre.exe") {
+            Move-Item Encre.exe encre-windows-${{ matrix.arch }}.exe
           }
 
       - name: Generate Windows README
@@ -401,12 +405,12 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           @"
-          MyReviser for Windows
+          Encre for Windows
 
-          Thank you for installing MyReviser, the Fyne-powered AI text revision assistant.
+          Thank you for installing Encre, the Fyne-powered AI text revision assistant.
 
           Getting Started:
-          1. Launch myreviser.exe (or use the Start Menu shortcut).
+          1. Launch encre.exe (or use the Start Menu shortcut).
           2. Right-click the tray icon to open Settings.
           3. Configure your AI provider (OpenAI, Claude, or Gemini) and hotkeys.
 
@@ -415,24 +419,24 @@ jobs:
           - Ctrl+Win: Revise selected text.
 
           Tips:
-          - Enable "Start on login" from Settings > System to launch MyReviser automatically.
-          - MyReviser runs from the system tray; use the tray menu to quit or update preferences.
+          - Enable "Start on login" from Settings > System to launch Encre automatically.
+          - Encre runs from the system tray; use the tray menu to quit or update preferences.
 
-          Support: https://github.com/paradoxe35/myreviser
+          Support: https://github.com/paradoxe35/encre
           "@ | Out-File -FilePath dist\README.txt -Encoding UTF8
 
       - name: Create portable ZIP
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist\portable | Out-Null
-          Copy-Item myreviser-windows-${{ matrix.arch }}.exe dist\portable\myreviser.exe -Force
+          Copy-Item encre-windows-${{ matrix.arch }}.exe dist\portable\encre.exe -Force
           if (Test-Path "assets\icon.ico") {
             Copy-Item assets\icon.ico dist\portable\icon.ico -Force
           }
           if (Test-Path "dist\README.txt") {
             Copy-Item dist\README.txt dist\portable\README.txt -Force
           }
-          Compress-Archive -Path dist\portable\* -DestinationPath myreviser-windows-${{ matrix.arch }}-portable.zip -Force
+          Compress-Archive -Path dist\portable\* -DestinationPath encre-windows-${{ matrix.arch }}-portable.zip -Force
 
       - name: Create installer (NSIS)
         if: matrix.arch == 'amd64'
@@ -442,8 +446,8 @@ jobs:
           $env:Path += ";C:\Program Files (x86)\NSIS"
 
           # Verify required files exist
-          if (-not (Test-Path "myreviser-windows-${{ matrix.arch }}.exe")) {
-            Write-Error "Source executable not found: myreviser-windows-${{ matrix.arch }}.exe"
+          if (-not (Test-Path "encre-windows-${{ matrix.arch }}.exe")) {
+            Write-Error "Source executable not found: encre-windows-${{ matrix.arch }}.exe"
             exit 1
           }
           if (-not (Test-Path "assets\icon.ico")) {
@@ -460,15 +464,15 @@ jobs:
           !include "nsDialogs.nsh"
           !include "LogicLib.nsh"
 
-          !define PRODUCT_NAME "MyReviser"
+          !define PRODUCT_NAME "Encre"
           !define PRODUCT_VERSION "$version"
-          !define PRODUCT_PUBLISHER "MyReviser Team"
-          !define PRODUCT_WEB_SITE "https://github.com/paradoxe35/myreviser"
+          !define PRODUCT_PUBLISHER "Encre Team"
+          !define PRODUCT_WEB_SITE "https://github.com/paradoxe35/encre"
           !define PRODUCT_INSTALL_REG "Software\`${PRODUCT_PUBLISHER}\`${PRODUCT_NAME}"
           !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${PRODUCT_NAME}"
 
           Name "`${PRODUCT_NAME}"
-          OutFile "MyReviser-Setup.exe"
+          OutFile "Encre-Setup.exe"
           InstallDir "`$LOCALAPPDATA\`${PRODUCT_NAME}"
           InstallDirRegKey HKCU "`${PRODUCT_INSTALL_REG}" "InstallDir"
           RequestExecutionLevel user
@@ -485,30 +489,30 @@ jobs:
           !insertmacro MUI_PAGE_WELCOME
           !insertmacro MUI_PAGE_DIRECTORY
           !insertmacro MUI_PAGE_INSTFILES
-          !define MUI_FINISHPAGE_RUN "`$INSTDIR\myreviser.exe"
-          !define MUI_FINISHPAGE_RUN_TEXT "Launch MyReviser now"
+          !define MUI_FINISHPAGE_RUN "`$INSTDIR\encre.exe"
+          !define MUI_FINISHPAGE_RUN_TEXT "Launch Encre now"
           !insertmacro MUI_PAGE_FINISH
 
           !insertmacro MUI_LANGUAGE "English"
 
-          Section "MyReviser" SEC_APP
+          Section "Encre" SEC_APP
             SetOutPath "`$INSTDIR"
-            File /oname=myreviser.exe "myreviser-windows-${{ matrix.arch }}.exe"
+            File /oname=encre.exe "encre-windows-${{ matrix.arch }}.exe"
             File /nonfatal /oname=README.txt "dist\README.txt"
             File /nonfatal /oname=icon.ico "assets\icon.ico"
 
             Call RegisterApplication
 
             CreateDirectory "`$SMPROGRAMS\`${PRODUCT_NAME}"
-            CreateShortcut "`$SMPROGRAMS\`${PRODUCT_NAME}\`${PRODUCT_NAME}.lnk" "`$INSTDIR\myreviser.exe"
+            CreateShortcut "`$SMPROGRAMS\`${PRODUCT_NAME}\`${PRODUCT_NAME}.lnk" "`$INSTDIR\encre.exe"
             CreateShortcut "`$SMPROGRAMS\`${PRODUCT_NAME}\Uninstall `${PRODUCT_NAME}.lnk" "`$INSTDIR\Uninstall.exe"
-            CreateShortcut "`$DESKTOP\`${PRODUCT_NAME}.lnk" "`$INSTDIR\myreviser.exe"
+            CreateShortcut "`$DESKTOP\`${PRODUCT_NAME}.lnk" "`$INSTDIR\encre.exe"
           SectionEnd
 
           Section "Uninstall"
             Call un.StopApplication
 
-            Delete "`$INSTDIR\myreviser.exe"
+            Delete "`$INSTDIR\encre.exe"
             Delete "`$INSTDIR\README.txt"
             Delete "`$INSTDIR\icon.ico"
             Delete "`$INSTDIR\Uninstall.exe"
@@ -527,7 +531,7 @@ jobs:
             WriteUninstaller "`$INSTDIR\Uninstall.exe"
             WriteRegStr HKCU "`${PRODUCT_UNINST_KEY}" "DisplayName" "`${PRODUCT_NAME}"
             WriteRegStr HKCU "`${PRODUCT_UNINST_KEY}" "UninstallString" "`$INSTDIR\Uninstall.exe"
-            WriteRegStr HKCU "`${PRODUCT_UNINST_KEY}" "DisplayIcon" "`$INSTDIR\myreviser.exe"
+            WriteRegStr HKCU "`${PRODUCT_UNINST_KEY}" "DisplayIcon" "`$INSTDIR\encre.exe"
             WriteRegStr HKCU "`${PRODUCT_UNINST_KEY}" "DisplayVersion" "`${PRODUCT_VERSION}"
             WriteRegStr HKCU "`${PRODUCT_UNINST_KEY}" "Publisher" "`${PRODUCT_PUBLISHER}"
             WriteRegStr HKCU "`${PRODUCT_UNINST_KEY}" "URLInfoAbout" "`${PRODUCT_WEB_SITE}"
@@ -540,7 +544,7 @@ jobs:
           FunctionEnd
 
           Function un.StopApplication
-            nsExec::ExecToStack 'taskkill /F /IM myreviser.exe'
+            nsExec::ExecToStack 'taskkill /F /IM encre.exe'
             Pop `$0
           FunctionEnd
           "@ | Out-File -FilePath installer.nsi -Encoding UTF8
@@ -557,32 +561,32 @@ jobs:
             exit 1
           }
 
-          if (Test-Path "MyReviser-Setup.exe") {
+          if (Test-Path "Encre-Setup.exe") {
             Write-Host "Installer created successfully"
-            Move-Item MyReviser-Setup.exe myreviser-windows-${{ matrix.arch }}-installer.exe -Force
+            Move-Item Encre-Setup.exe encre-windows-${{ matrix.arch }}-installer.exe -Force
           } else {
-            Write-Error "MyReviser-Setup.exe was not created by NSIS"
+            Write-Error "Encre-Setup.exe was not created by NSIS"
             exit 1
           }
 
       - name: Upload portable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: myreviser-windows-${{ matrix.arch }}-portable
-          path: myreviser-windows-${{ matrix.arch }}-portable.zip
+          name: encre-windows-${{ matrix.arch }}-portable
+          path: encre-windows-${{ matrix.arch }}-portable.zip
 
       - name: Upload installer artifact
         if: matrix.arch == 'amd64'
         uses: actions/upload-artifact@v4
         with:
-          name: myreviser-windows-${{ matrix.arch }}-installer
-          path: myreviser-windows-${{ matrix.arch }}-installer.exe
+          name: encre-windows-${{ matrix.arch }}-installer
+          path: encre-windows-${{ matrix.arch }}-installer.exe
 
       - name: Upload exe artifact
         uses: actions/upload-artifact@v4
         with:
-          name: myreviser-windows-${{ matrix.arch }}-exe
-          path: myreviser-windows-${{ matrix.arch }}.exe
+          name: encre-windows-${{ matrix.arch }}-exe
+          path: encre-windows-${{ matrix.arch }}.exe
 
   build-macos:
     strategy:
@@ -648,10 +652,10 @@ jobs:
           cd rust-ffi
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             cargo build --release --target aarch64-apple-darwin
-            cp target/aarch64-apple-darwin/release/libmyreviser_ffi.a ../lib/
+            cp target/aarch64-apple-darwin/release/libencre_ffi.a ../lib/
           else
             cargo build --release --target x86_64-apple-darwin
-            cp target/x86_64-apple-darwin/release/libmyreviser_ffi.a ../lib/
+            cp target/x86_64-apple-darwin/release/libencre_ffi.a ../lib/
           fi
 
       - name: Build application with Fyne
@@ -671,100 +675,100 @@ jobs:
           echo "Building version: ${VERSION} (build: ${BUILD_NUMBER})"
 
           # Use fyne package with version info
-          fyne package --icon assets/icon.png --name MyReviser --app-id me.pngwasi.myreviser --release \
+          fyne package --icon assets/icon.png --name Encre --app-id me.pngwasi.encre --release \
             --app-version "${VERSION}" \
             --app-build "${BUILD_NUMBER}"
 
       - name: Verify .app bundle created
         run: |
-          if [ ! -d "MyReviser.app" ]; then
-            echo "Error: MyReviser.app was not created"
+          if [ ! -d "Encre.app" ]; then
+            echo "Error: Encre.app was not created"
             ls -la
             exit 1
           fi
-          echo "MyReviser.app created successfully"
+          echo "Encre.app created successfully"
 
       - name: Verify Info.plist
         run: |
           # Verify Info.plist exists and is valid
           echo "Info.plist contents:"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" MyReviser.app/Contents/Info.plist
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" MyReviser.app/Contents/Info.plist
+          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" Encre.app/Contents/Info.plist
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" Encre.app/Contents/Info.plist
 
       - name: Ad-hoc sign app bundle (inside-out approach)
         run: |
-          echo "Ad-hoc signing MyReviser.app (without hardened runtime/entitlements)..."
+          echo "Ad-hoc signing Encre.app (without hardened runtime/entitlements)..."
 
           # Determine actual executable name from Info.plist
-          EXEC=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" MyReviser.app/Contents/Info.plist)
+          EXEC=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" Encre.app/Contents/Info.plist)
           echo "CFBundleExecutable=$EXEC"
 
           # Sign from inside-out (Apple best practice):
           # 1. Sign any nested frameworks first (if they exist)
           echo "Signing frameworks (if any)..."
-          find MyReviser.app/Contents/Frameworks -name "*.framework" -exec codesign --force --sign - {} \; 2>/dev/null || true
+          find Encre.app/Contents/Frameworks -name "*.framework" -exec codesign --force --sign - {} \; 2>/dev/null || true
 
           # 2. Sign the main executable
           echo "Signing executable: ${EXEC}"
-          codesign --force --sign - "MyReviser.app/Contents/MacOS/${EXEC}"
+          codesign --force --sign - "Encre.app/Contents/MacOS/${EXEC}"
 
           # 3. Sign the entire app bundle (without --deep since contents already signed)
           echo "Signing app bundle..."
-          codesign --force --sign - MyReviser.app
+          codesign --force --sign - Encre.app
 
           # Verify the signature
           echo "Verifying signature..."
-          codesign --verify --verbose=4 MyReviser.app
+          codesign --verify --verbose=4 Encre.app
 
           echo "Ad-hoc signing completed successfully"
 
       - name: Remove quarantine attributes
         run: |
           # Remove quarantine attribute to prevent "damaged" error
-          xattr -cr MyReviser.app || true
+          xattr -cr Encre.app || true
 
       - name: Create installation README
         run: |
           cat > INSTALL_MACOS.txt <<'EOF'
-          MyReviser for macOS - Installation Instructions
+          Encre for macOS - Installation Instructions
 
           FIRST LAUNCH:
 
-          When you first open MyReviser, you'll see a security warning:
-          "MyReviser cannot be opened because it is from an unidentified developer"
+          When you first open Encre, you'll see a security warning:
+          "Encre cannot be opened because it is from an unidentified developer"
 
           METHOD 1 (Recommended):
-          1. Right-click (or Control+click) MyReviser.app
+          1. Right-click (or Control+click) Encre.app
           2. Select "Open" from the menu
           3. Click "Open" in the security dialog
-          4. MyReviser will launch and appear in your menu bar (tray icon)
+          4. Encre will launch and appear in your menu bar (tray icon)
 
           METHOD 2 (System Settings):
-          1. Try to open MyReviser normally (it will be blocked)
+          1. Try to open Encre normally (it will be blocked)
           2. Go to System Settings > Privacy & Security
-          3. Look for "MyReviser was blocked" message
+          3. Look for "Encre was blocked" message
           4. Click "Open Anyway"
           5. Click "Open" in the confirmation dialog
 
           METHOD 3 (Terminal - if above methods don't work):
           1. Open Terminal (Applications > Utilities > Terminal)
           2. Type: xattr -cr
-          3. Drag MyReviser.app into Terminal window
+          3. Drag Encre.app into Terminal window
           4. Press Enter
-          5. Open MyReviser normally
+          5. Open Encre normally
 
           IMPORTANT:
-          - MyReviser runs in the menu bar (no Dock icon)
+          - Encre runs in the menu bar (no Dock icon)
           - Grant Accessibility permissions when prompted for global hotkeys
           - After first launch, it will open normally
 
-          Support: https://github.com/paradoxe35/myreviser
+          Support: https://github.com/paradoxe35/encre
           EOF
 
       - name: Create ZIP archive
         run: |
           # Create zip without extended attributes to avoid Gatekeeper issues
-          zip -r -X myreviser-darwin-${{ matrix.arch }}.zip MyReviser.app INSTALL_MACOS.txt
+          zip -r -X encre-darwin-${{ matrix.arch }}.zip Encre.app INSTALL_MACOS.txt
 
       - name: Create DMG
         run: |
@@ -773,16 +777,16 @@ jobs:
 
           # Create DMG - allow failure if create-dmg has issues
           if create-dmg \
-            --volname "MyReviser" \
+            --volname "Encre" \
             --window-pos 200 120 \
             --window-size 600 400 \
             --icon-size 100 \
-            --icon "MyReviser.app" 175 120 \
-            --hide-extension "MyReviser.app" \
+            --icon "Encre.app" 175 120 \
+            --hide-extension "Encre.app" \
             --app-drop-link 425 120 \
             --no-internet-enable \
-            "myreviser-darwin-${{ matrix.arch }}.dmg" \
-            "MyReviser.app"; then
+            "encre-darwin-${{ matrix.arch }}.dmg" \
+            "Encre.app"; then
             echo "DMG created successfully"
           else
             echo "Warning: DMG creation failed, but ZIP archive is available"
@@ -791,15 +795,15 @@ jobs:
       - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
         with:
-          name: myreviser-darwin-${{ matrix.arch }}-zip
-          path: myreviser-darwin-${{ matrix.arch }}.zip
+          name: encre-darwin-${{ matrix.arch }}-zip
+          path: encre-darwin-${{ matrix.arch }}.zip
 
       - name: Upload DMG artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: myreviser-darwin-${{ matrix.arch }}-dmg
-          path: myreviser-darwin-${{ matrix.arch }}.dmg
+          name: encre-darwin-${{ matrix.arch }}-dmg
+          path: encre-darwin-${{ matrix.arch }}.dmg
           if-no-files-found: ignore
 
   release:
@@ -833,24 +837,24 @@ jobs:
         with:
           files: release/*
           body: |
-            MyReviser ${{ github.ref_name }}
+            Encre ${{ github.ref_name }}
 
             AI-powered text revision tool with global hotkeys and multi-provider support.
 
             ## Downloads
 
             **Windows**
-            - Portable (x64): `myreviser-windows-amd64-portable.zip`
-            - Installer (x64): `myreviser-windows-amd64-installer.exe`
+            - Portable (x64): `encre-windows-amd64-portable.zip`
+            - Installer (x64): `encre-windows-amd64-installer.exe`
 
             **macOS**
-            - Intel (x64): `myreviser-darwin-amd64.dmg`
-            - Apple Silicon (ARM64): `myreviser-darwin-arm64.dmg`
+            - Intel (x64): `encre-darwin-amd64.dmg`
+            - Apple Silicon (ARM64): `encre-darwin-arm64.dmg`
 
             **Linux**
-            - Portable (x64): `myreviser-linux-amd64.tar.gz`
-            - AppImage (x64): `myreviser-linux-amd64.AppImage`
-            - Debian/Ubuntu (x64): `myreviser-linux-amd64.deb`
+            - Portable (x64): `encre-linux-amd64.tar.gz`
+            - AppImage (x64): `encre-linux-amd64.AppImage`
+            - Debian/Ubuntu (x64): `encre-linux-amd64.deb`
 
             Verify downloads with `checksums.txt`.
 
@@ -860,24 +864,24 @@ jobs:
 
             **macOS**:
             1. Download and extract ZIP or open DMG
-            2. First launch: Right-click MyReviser.app > Open > Click "Open"
+            2. First launch: Right-click Encre.app > Open > Click "Open"
             3. Or go to System Settings > Privacy & Security > Click "Open Anyway"
-            4. MyReviser appears in menu bar (no Dock icon)
+            4. Encre appears in menu bar (no Dock icon)
             5. Grant Accessibility permissions when prompted
 
             **Linux**:
             ```bash
             # AppImage
-            chmod +x myreviser-linux-amd64.AppImage
-            ./myreviser-linux-amd64.AppImage
+            chmod +x encre-linux-amd64.AppImage
+            ./encre-linux-amd64.AppImage
 
             # Debian/Ubuntu
-            sudo dpkg -i myreviser-linux-amd64.deb
+            sudo dpkg -i encre-linux-amd64.deb
             ```
 
             ## Quick Start
 
-            1. Launch MyReviser (appears in system tray)
+            1. Launch Encre (appears in system tray)
             2. Right-click tray icon > Settings
             3. Configure AI provider (OpenAI, Claude, or Gemini)
             4. Set hotkeys (optional)

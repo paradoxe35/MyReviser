@@ -33,6 +33,10 @@ fn is_wayland() -> bool {
 /// Receives the action string the binding was registered with.
 pub type HotkeyCallback = extern "C" fn(*const c_char);
 
+/// Push-to-talk delivers both edges: 1 when the key goes down, 0 when it comes
+/// up. Kept separate from `HotkeyCallback` so existing bindings keep their ABI.
+pub type PttCallback = extern "C" fn(*const c_char, c_int);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Modifier {
     Ctrl,
@@ -179,11 +183,15 @@ const KEYS: &[(Key, &str)] = &[
 ];
 
 fn key_name(key: &Key) -> Option<&'static str> {
-    KEYS.iter().find(|(known, _)| known == key).map(|(_, name)| *name)
+    KEYS.iter()
+        .find(|(known, _)| known == key)
+        .map(|(_, name)| *name)
 }
 
 fn canonical_key_name(name: &str) -> Option<&'static str> {
-    KEYS.iter().find(|(_, known)| *known == name).map(|(_, name)| *name)
+    KEYS.iter()
+        .find(|(_, known)| *known == name)
+        .map(|(_, name)| *name)
 }
 
 /// A binding is modifiers, then optionally one key: `ctrl+alt+space`, or `ctrl+cmd` on its own.
@@ -222,25 +230,48 @@ fn parse_binding(binding: &str) -> Result<(Modifiers, Option<&'static str>), Str
     Ok((modifiers, key))
 }
 
+/// How a binding reports itself: once on press, or on both edges.
+enum Trigger {
+    Tap(HotkeyCallback),
+    Hold(PttCallback),
+}
+
 struct HotkeyBinding {
     binding: String,
     action: String,
-    callback: HotkeyCallback,
+    trigger: Trigger,
     modifiers: Modifiers,
     /// `None` for a modifier-only binding such as `ctrl+cmd`.
     key: Option<&'static str>,
 }
 
-fn fire(binding: &HotkeyBinding) {
-    tracing::info!(
-        "Hotkey triggered: {} (action: {})",
+impl HotkeyBinding {
+    fn is_hold(&self) -> bool {
+        matches!(self.trigger, Trigger::Hold(_))
+    }
+}
+
+fn fire(binding: &HotkeyBinding, down: bool) {
+    // Auto-repeat redelivers edges while a key is held; the host logs the
+    // settled state.
+    tracing::debug!(
+        "Hotkey {} : {} (action: {})",
+        if down { "down" } else { "up" },
         binding.binding,
         binding.action
     );
     // Lent, not handed over: `into_raw` leaked one allocation per key press. The host copies
     // during the call.
-    if let Ok(action) = CString::new(binding.action.as_str()) {
-        (binding.callback)(action.as_ptr());
+    let Ok(action) = CString::new(binding.action.as_str()) else {
+        return;
+    };
+    match binding.trigger {
+        Trigger::Tap(callback) => {
+            if down {
+                callback(action.as_ptr())
+            }
+        }
+        Trigger::Hold(callback) => callback(action.as_ptr(), c_int::from(down)),
     }
 }
 
@@ -260,6 +291,9 @@ struct ListenerState {
     interrupted: bool,
     /// The non-modifier key currently down, so auto-repeat is not read as a second press.
     held_key: Option<&'static str>,
+    /// The key that started a push-to-talk binding, so the up edge is only sent
+    /// for a hold that actually began.
+    holding: Option<&'static str>,
     delivery_announced: bool,
     unmatched_announced: Vec<&'static str>,
 }
@@ -302,15 +336,18 @@ impl ListenerState {
         // Once, and without naming the key: proof that key events reach us at all.
         if !self.delivery_announced {
             self.delivery_announced = true;
-            tracing::info!("The system is delivering key events to MyReviser");
+            tracing::info!("The system is delivering key events to Encre");
         }
 
         let bindings = bindings.lock();
         let mut fired = false;
         for binding in bindings.iter() {
             if binding.key == Some(name) && binding.modifiers == self.held {
-                fire(binding);
+                fire(binding, true);
                 fired = true;
+                if binding.is_hold() {
+                    self.holding = Some(name);
+                }
             }
         }
         if !fired {
@@ -320,8 +357,21 @@ impl ListenerState {
 
     fn on_release(&mut self, key: Key, bindings: &Mutex<Vec<HotkeyBinding>>) {
         let Some(modifier) = Modifier::from_key(&key) else {
-            if self.held_key == key_name(&key) {
+            let name = key_name(&key);
+            if self.held_key == name {
                 self.held_key = None;
+            }
+            // Only the named key ends a hold. Releasing a modifier first is a
+            // slipped finger, not an instruction to stop recording.
+            if let (Some(name), Some(holding)) = (name, self.holding) {
+                if name == holding {
+                    self.holding = None;
+                    for binding in bindings.lock().iter() {
+                        if binding.is_hold() && binding.key == Some(name) {
+                            fire(binding, false);
+                        }
+                    }
+                }
             }
             return;
         };
@@ -336,7 +386,7 @@ impl ListenerState {
         if !self.interrupted && before == self.chord {
             for binding in bindings.lock().iter() {
                 if binding.key.is_none() && binding.modifiers == before {
-                    fire(binding);
+                    fire(binding, true);
                 }
             }
         }
@@ -393,12 +443,33 @@ impl SimpleHotkeyManager {
         action: String,
         callback: HotkeyCallback,
     ) -> Result<(), String> {
+        self.push(binding, action, Trigger::Tap(callback))
+    }
+
+    /// Registers a binding that reports both edges. A hold needs a real key:
+    /// a modifier-only chord has no press to hold down.
+    pub fn register_hold(
+        &mut self,
+        binding: String,
+        action: String,
+        callback: PttCallback,
+    ) -> Result<(), String> {
+        let (_, key) = parse_binding(&binding)?;
+        if key.is_none() {
+            return Err(format!(
+                "{binding} is modifiers only, which cannot be held for push-to-talk"
+            ));
+        }
+        self.push(binding, action, Trigger::Hold(callback))
+    }
+
+    fn push(&mut self, binding: String, action: String, trigger: Trigger) -> Result<(), String> {
         let (modifiers, key) = parse_binding(&binding)?;
         tracing::info!("Registered hotkey: {} (action: {})", binding, action);
         self.bindings.lock().push(HotkeyBinding {
             binding,
             action,
-            callback,
+            trigger,
             modifiers,
             key,
         });
@@ -478,7 +549,7 @@ impl SimpleHotkeyManager {
                 if let Err(e) = listen(callback) {
                     *listen_error.lock() = Some(format!(
                         "The system refused the key listener ({:?}). On macOS this is Input \
-                         Monitoring; grant it to MyReviser and restart.",
+                         Monitoring; grant it to Encre and restart.",
                         e
                     ));
                 }
@@ -500,124 +571,184 @@ impl SimpleHotkeyManager {
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_manager_new() -> HotkeyManagerHandle {
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn encre_hotkey_manager_new() -> HotkeyManagerHandle {
     init_logging();
 
     let manager = Box::new(SimpleHotkeyManager::new());
     Box::into_raw(manager) as HotkeyManagerHandle
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_clear(handle: HotkeyManagerHandle) -> c_int {
-    if handle.is_null() {
-        set_last_error("Null hotkey manager handle provided".to_string());
-        return FFIErrorCode::NullPointer as c_int;
-    }
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn encre_hotkey_clear(handle: HotkeyManagerHandle) -> c_int {
+    unsafe {
+        if handle.is_null() {
+            set_last_error("Null hotkey manager handle provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
+        }
 
-    let manager = &mut *(handle as *mut SimpleHotkeyManager);
-    manager.clear_bindings();
-    FFIErrorCode::Success as c_int
+        let manager = &mut *(handle as *mut SimpleHotkeyManager);
+        manager.clear_bindings();
+        FFIErrorCode::Success as c_int
+    }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_register(
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn encre_hotkey_register(
     handle: HotkeyManagerHandle,
     binding: *const c_char,
     action: *const c_char,
     callback: HotkeyCallback,
 ) -> c_int {
-    if handle.is_null() {
-        set_last_error("Null hotkey manager handle provided".to_string());
-        return FFIErrorCode::NullPointer as c_int;
-    }
-
-    if binding.is_null() || action.is_null() {
-        set_last_error("Null binding or action provided".to_string());
-        return FFIErrorCode::NullPointer as c_int;
-    }
-
-    let manager = &mut *(handle as *mut SimpleHotkeyManager);
-
-    let binding_str = match c_str_to_string(binding) {
-        Ok(s) => s,
-        Err(e) => {
-            set_last_error(format!("Invalid binding string: {}", e));
-            return FFIErrorCode::InvalidUtf8 as c_int;
+    unsafe {
+        if handle.is_null() {
+            set_last_error("Null hotkey manager handle provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
         }
-    };
 
-    let action_str = match c_str_to_string(action) {
-        Ok(s) => s,
-        Err(e) => {
-            set_last_error(format!("Invalid action string: {}", e));
-            return FFIErrorCode::InvalidUtf8 as c_int;
+        if binding.is_null() || action.is_null() {
+            set_last_error("Null binding or action provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
         }
-    };
 
-    match manager.register(binding_str, action_str, callback) {
-        Ok(_) => FFIErrorCode::Success as c_int,
-        Err(e) => {
-            set_last_error(format!("Hotkey registration failed: {}", e));
-            FFIErrorCode::OperationFailed as c_int
-        }
-    }
-}
+        let manager = &mut *(handle as *mut SimpleHotkeyManager);
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_start(handle: HotkeyManagerHandle) -> c_int {
-    if handle.is_null() {
-        set_last_error("Null hotkey manager handle provided".to_string());
-        return FFIErrorCode::NullPointer as c_int;
-    }
+        let binding_str = match c_str_to_string(binding) {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(format!("Invalid binding string: {}", e));
+                return FFIErrorCode::InvalidUtf8 as c_int;
+            }
+        };
 
-    let manager = &mut *(handle as *mut SimpleHotkeyManager);
+        let action_str = match c_str_to_string(action) {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(format!("Invalid action string: {}", e));
+                return FFIErrorCode::InvalidUtf8 as c_int;
+            }
+        };
 
-    match manager.start() {
-        Ok(_) => FFIErrorCode::Success as c_int,
-        Err(e) => {
-            set_last_error(format!("Failed to start hotkey listener: {}", e));
-            FFIErrorCode::OperationFailed as c_int
+        match manager.register(binding_str, action_str, callback) {
+            Ok(_) => FFIErrorCode::Success as c_int,
+            Err(e) => {
+                set_last_error(format!("Hotkey registration failed: {}", e));
+                FFIErrorCode::OperationFailed as c_int
+            }
         }
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_stop(handle: HotkeyManagerHandle) -> c_int {
-    if handle.is_null() {
-        set_last_error("Null hotkey manager handle provided".to_string());
-        return FFIErrorCode::NullPointer as c_int;
-    }
+/// Registers a push-to-talk binding. The callback receives 1 on key down and 0
+/// on key up, so the host can record only while the shortcut is held.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn encre_hotkey_register_hold(
+    handle: HotkeyManagerHandle,
+    binding: *const c_char,
+    action: *const c_char,
+    callback: PttCallback,
+) -> c_int {
+    unsafe {
+        if handle.is_null() {
+            set_last_error("Null hotkey manager handle provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
+        }
 
-    let manager = &mut *(handle as *mut SimpleHotkeyManager);
+        if binding.is_null() || action.is_null() {
+            set_last_error("Null binding or action provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
+        }
 
-    match manager.stop() {
-        Ok(_) => FFIErrorCode::Success as c_int,
-        Err(e) => {
-            set_last_error(format!("Failed to stop hotkey listener: {}", e));
-            FFIErrorCode::OperationFailed as c_int
+        let manager = &mut *(handle as *mut SimpleHotkeyManager);
+
+        let binding_str = match c_str_to_string(binding) {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(format!("Invalid binding string: {}", e));
+                return FFIErrorCode::InvalidUtf8 as c_int;
+            }
+        };
+
+        let action_str = match c_str_to_string(action) {
+            Ok(s) => s,
+            Err(e) => {
+                set_last_error(format!("Invalid action string: {}", e));
+                return FFIErrorCode::InvalidUtf8 as c_int;
+            }
+        };
+
+        match manager.register_hold(binding_str, action_str, callback) {
+            Ok(_) => FFIErrorCode::Success as c_int,
+            Err(e) => {
+                set_last_error(format!("Hotkey registration failed: {}", e));
+                FFIErrorCode::OperationFailed as c_int
+            }
         }
     }
 }
 
-/// Null when the listener is running. The caller frees the string with `myreviser_free_string`.
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_listen_error(handle: HotkeyManagerHandle) -> *mut c_char {
-    if handle.is_null() {
-        return std::ptr::null_mut();
-    }
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn encre_hotkey_start(handle: HotkeyManagerHandle) -> c_int {
+    unsafe {
+        if handle.is_null() {
+            set_last_error("Null hotkey manager handle provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
+        }
 
-    let manager = &*(handle as *mut SimpleHotkeyManager);
-    match manager.listen_error.lock().clone() {
-        Some(message) => string_to_c_str(message),
-        None => std::ptr::null_mut(),
+        let manager = &mut *(handle as *mut SimpleHotkeyManager);
+
+        match manager.start() {
+            Ok(_) => FFIErrorCode::Success as c_int,
+            Err(e) => {
+                set_last_error(format!("Failed to start hotkey listener: {}", e));
+                FFIErrorCode::OperationFailed as c_int
+            }
+        }
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn myreviser_hotkey_manager_free(handle: HotkeyManagerHandle) {
-    if !handle.is_null() {
-        let _ = Box::from_raw(handle as *mut SimpleHotkeyManager);
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn encre_hotkey_stop(handle: HotkeyManagerHandle) -> c_int {
+    unsafe {
+        if handle.is_null() {
+            set_last_error("Null hotkey manager handle provided".to_string());
+            return FFIErrorCode::NullPointer as c_int;
+        }
+
+        let manager = &mut *(handle as *mut SimpleHotkeyManager);
+
+        match manager.stop() {
+            Ok(_) => FFIErrorCode::Success as c_int,
+            Err(e) => {
+                set_last_error(format!("Failed to stop hotkey listener: {}", e));
+                FFIErrorCode::OperationFailed as c_int
+            }
+        }
+    }
+}
+
+/// Null when the listener is running. The caller frees the string with `encre_free_string`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn encre_hotkey_listen_error(handle: HotkeyManagerHandle) -> *mut c_char {
+    unsafe {
+        if handle.is_null() {
+            return std::ptr::null_mut();
+        }
+
+        let manager = &*(handle as *mut SimpleHotkeyManager);
+        match manager.listen_error.lock().clone() {
+            Some(message) => string_to_c_str(message),
+            None => std::ptr::null_mut(),
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn encre_hotkey_manager_free(handle: HotkeyManagerHandle) {
+    unsafe {
+        if !handle.is_null() {
+            let _ = Box::from_raw(handle as *mut SimpleHotkeyManager);
+        }
     }
 }
 
@@ -631,7 +762,9 @@ mod tests {
     static SERIAL: Mutex<()> = Mutex::new(());
 
     extern "C" fn record(action: *const c_char) {
-        let text = unsafe { CStr::from_ptr(action) }.to_string_lossy().into_owned();
+        let text = unsafe { CStr::from_ptr(action) }
+            .to_string_lossy()
+            .into_owned();
         FIRED.lock().push(text);
     }
 
@@ -763,7 +896,12 @@ mod tests {
                     Up(second),
                 ],
             );
-            assert_eq!(actions, vec!["revise_selection"], "releasing {:?} first", first);
+            assert_eq!(
+                actions,
+                vec!["revise_selection"],
+                "releasing {:?} first",
+                first
+            );
         }
     }
 
@@ -903,18 +1041,17 @@ mod tests {
             ],
         );
 
-        assert!(actions.is_empty(), "ctrl+option+shift+space matched ctrl+option+space");
+        assert!(
+            actions.is_empty(),
+            "ctrl+option+shift+space matched ctrl+option+space"
+        );
     }
 
     #[test]
     fn the_right_hand_modifiers_are_the_same_modifiers() {
         let actions = fired(
             MAC,
-            &[
-                Down(Key::ControlRight),
-                Down(Key::AltGr),
-                Down(Key::Space),
-            ],
+            &[Down(Key::ControlRight), Down(Key::AltGr), Down(Key::Space)],
         );
 
         assert_eq!(actions, vec!["revise_all"]);
@@ -956,17 +1093,21 @@ mod tests {
     #[test]
     fn a_binding_without_a_modifier_is_refused() {
         let mut manager = SimpleHotkeyManager::new();
-        assert!(manager
-            .register("space".to_string(), "revise_all".to_string(), record)
-            .is_err());
+        assert!(
+            manager
+                .register("space".to_string(), "revise_all".to_string(), record)
+                .is_err()
+        );
     }
 
     #[test]
     fn a_binding_that_names_two_keys_is_refused() {
         let mut manager = SimpleHotkeyManager::new();
-        assert!(manager
-            .register("ctrl+a+b".to_string(), "revise_all".to_string(), record)
-            .is_err());
+        assert!(
+            manager
+                .register("ctrl+a+b".to_string(), "revise_all".to_string(), record)
+                .is_err()
+        );
     }
 
     #[test]
@@ -1000,8 +1141,27 @@ mod tests {
     #[test]
     fn every_name_the_recorder_can_produce_is_a_key_the_listener_knows() {
         let recorded = [
-            "space", "return", "escape", "tab", "backspace", "delete", "insert", "home", "end",
-            "pageup", "pagedown", "left", "right", "up", "down", "a", "z", "0", "9", "f1", "f12",
+            "space",
+            "return",
+            "escape",
+            "tab",
+            "backspace",
+            "delete",
+            "insert",
+            "home",
+            "end",
+            "pageup",
+            "pagedown",
+            "left",
+            "right",
+            "up",
+            "down",
+            "a",
+            "z",
+            "0",
+            "9",
+            "f1",
+            "f12",
         ];
         for name in recorded {
             assert!(
@@ -1020,11 +1180,21 @@ mod tests {
         let mut manager = SimpleHotkeyManager::new();
 
         manager.start().expect("start");
-        let first = manager.listener_handle.as_ref().expect("a listener").thread().id();
+        let first = manager
+            .listener_handle
+            .as_ref()
+            .expect("a listener")
+            .thread()
+            .id();
 
         manager.stop().expect("stop");
         manager.start().expect("resume");
-        let second = manager.listener_handle.as_ref().expect("a listener").thread().id();
+        let second = manager
+            .listener_handle
+            .as_ref()
+            .expect("a listener")
+            .thread()
+            .id();
 
         assert_eq!(first, second, "resuming spawned a second listener");
     }

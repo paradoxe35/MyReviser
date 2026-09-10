@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/paradoxe35/myreviser/internal/logger"
+	"github.com/paradoxe35/encre/internal/logger"
 )
 
 type autoStart struct{}
@@ -66,17 +66,17 @@ func (a *autoStart) Enable() error {
 		return fmt.Errorf("failed to create autostart directory: %w", err)
 	}
 
-	desktopFilePath := filepath.Join(autostartDir, "myreviser.desktop")
+	desktopFilePath := filepath.Join(autostartDir, "encre.desktop")
 
 	// Escape the executable path according to XDG desktop entry spec
 	escapedExec := escapeExecPath(executable)
 
 	desktopContent := fmt.Sprintf(`[Desktop Entry]
 Type=Application
-Name=MyReviser
+Name=Encre
 Comment=AI-powered text revision tool
 Exec=%s
-Icon=myreviser
+Icon=encre
 Terminal=false
 StartupNotify=false
 X-GNOME-Autostart-enabled=true
@@ -98,7 +98,7 @@ func (a *autoStart) Disable() error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	desktopFilePath := filepath.Join(homeDir, ".config", "autostart", "myreviser.desktop")
+	desktopFilePath := filepath.Join(homeDir, ".config", "autostart", "encre.desktop")
 
 	if err := os.Remove(desktopFilePath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove desktop file: %w", err)
@@ -115,7 +115,7 @@ func (a *autoStart) IsEnabled() bool {
 		return false
 	}
 
-	desktopFilePath := filepath.Join(homeDir, ".config", "autostart", "myreviser.desktop")
+	desktopFilePath := filepath.Join(homeDir, ".config", "autostart", "encre.desktop")
 	_, err = os.Stat(desktopFilePath)
 	return err == nil
 }

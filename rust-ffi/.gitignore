@@ -1,6 +1,1 @@
 target/
-Cargo.lock
-*.a
-*.so
-*.dylib
-*.dll

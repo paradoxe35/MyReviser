@@ -1,28 +1,27 @@
-# Binaries for programs and plugins
+# Compiled objects
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
+*.a
 *.test
-
-# Output of the go coverage tool
 *.out
 
-# Dependency directories
+# Rust build output, at any depth
+target/
+
+# Go
 vendor/
-
-# Go workspace file
 go.work
+.gocache
 
-# Build artifacts
+# Build artifacts and packaged output
 bin/
 build/
 dist/
-myreviser
-myreviser.exe
+encre
+encre.exe
 *.AppImage
 *.dmg
 *.deb
@@ -30,28 +29,22 @@ myreviser.exe
 *.tar.gz
 *.tar.xz
 *.zip
-.gocache
-MyReviser.app
+Encre.app
+tmp-pkg/
+tmp/
 
-# Fyne bundled resources
+# Fyne generated sources
 bundled.go
 fyne_metadata_init.go
 
-# IDE and editor files
+# Runtime state written when testing locally
+.encre/
+*.log
+
+# Editors
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
-
-# Log files
-*.log
-rust/
-
-# Config and lock files (local testing)
-.myreviser/
-tmp-pkg/
-*.lock
-tmp/
-/target

@@ -1,6 +1,6 @@
-#ifndef MYREVISER_REOPEN_H
-#define MYREVISER_REOPEN_H
+#ifndef ENCRE_REOPEN_H
+#define ENCRE_REOPEN_H
 
-void MyReviserInstallReopenHandler(void);
+void EncreInstallReopenHandler(void);
 
 #endif

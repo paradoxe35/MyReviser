@@ -9,22 +9,27 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/paradoxe35/myreviser/internal/ai"
-	"github.com/paradoxe35/myreviser/internal/config"
-	"github.com/paradoxe35/myreviser/internal/input"
-	"github.com/paradoxe35/myreviser/internal/logger"
+	"github.com/paradoxe35/encre/internal/ai"
+	"github.com/paradoxe35/encre/internal/config"
+	"github.com/paradoxe35/encre/internal/history"
+	"github.com/paradoxe35/encre/internal/input"
+	"github.com/paradoxe35/encre/internal/language"
+	"github.com/paradoxe35/encre/internal/logger"
+	"github.com/paradoxe35/encre/internal/prompt"
+	"github.com/paradoxe35/encre/internal/stt"
 )
 
-// Processor handles text revision operations
+// Processor runs the text actions: capture a selection, send it to a provider,
+// write the result back where it came from.
 type Processor struct {
 	mu               sync.Mutex
 	config           *config.Config
 	providerFactory  *ai.ProviderFactory
 	clipboardManager *input.FFIClipboardManager
+	history          *history.Store
 	processing       bool
 }
 
-// NewProcessor creates a new revision processor
 func NewProcessor(cfg *config.Config) (*Processor, error) {
 	clipManager, err := input.NewFFIClipboardManager()
 	if err != nil {
@@ -35,20 +40,19 @@ func NewProcessor(cfg *config.Config) (*Processor, error) {
 		config:           cfg,
 		providerFactory:  ai.NewProviderFactory(),
 		clipboardManager: clipManager,
+		history:          history.NewStore(),
 	}
 
-	// Initialize AI providers (don't fail startup if not configured)
 	if err := p.initializeProviders(); err != nil {
 		logger.Warn("AI provider not configured at startup", "error", err)
 	}
 
-	// Register config change listener
 	config.RegisterListener(func(newCfg *config.Config) {
 		p.mu.Lock()
 		p.config = newCfg
 		p.mu.Unlock()
 
-		// Reinitialize providers with new config
+		p.providerFactory.Reset()
 		if err := p.initializeProviders(); err != nil {
 			logger.Warn("AI provider not configured", "error", err)
 		}
@@ -57,62 +61,80 @@ func NewProcessor(cfg *config.Config) (*Processor, error) {
 	return p, nil
 }
 
-func (p *Processor) initializeProviders() error {
+func (p *Processor) currentConfig() *config.Config {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	return p.config
+}
 
-	cfg := p.config
+func (p *Processor) initializeProviders() error {
+	cfg := p.currentConfig()
 
-	currentProvider := cfg.GetCurrentProvider()
-	if currentProvider == "" {
+	name := cfg.GetCurrentProvider()
+	if name == "" {
 		return fmt.Errorf("no provider configured")
 	}
 
-	apiKey, err := cfg.GetCurrentAPIKey()
+	provider, err := p.buildProvider(cfg, name)
 	if err != nil {
-		return fmt.Errorf("failed to get API key: %w", err)
+		return err
 	}
 
-	settings := cfg.GetProviderSettings(currentProvider)
+	p.providerFactory.Register(name, provider)
+	p.providerFactory.SetCurrent(name)
+
+	logger.Info("AI provider initialized", "provider", name)
+	return nil
+}
+
+// buildProvider is the single place a provider is constructed from settings.
+func (p *Processor) buildProvider(cfg *config.Config, name string) (ai.Provider, error) {
+	apiKey, err := cfg.GetAPIKey(name)
+	if err != nil {
+		return nil, fmt.Errorf("no API key configured for %s", name)
+	}
+
+	settings := cfg.GetProviderSettings(name)
 	if settings.RequiresAPIKey() && strings.TrimSpace(apiKey) == "" {
-		return fmt.Errorf("API key is empty for provider: %s", currentProvider)
+		return nil, fmt.Errorf("no API key configured for %s", name)
 	}
 
 	var provider ai.Provider
-
-	if settings.IsCustom {
-		customProvider, err := ai.NewCustomProvider(
-			currentProvider,
-			settings.ProviderType,
-			apiKey,
-			settings.BaseURL,
-			settings.Model,
-			settings.Temperature,
-		)
+	switch {
+	case settings.IsCustom:
+		provider, err = ai.NewCustomProvider(name, settings.ProviderType, apiKey,
+			settings.BaseURL, settings.Model, settings.Temperature)
 		if err != nil {
-			return fmt.Errorf("failed to create custom provider: %w", err)
+			return nil, fmt.Errorf("failed to create custom provider: %w", err)
 		}
-		provider = customProvider
-	} else {
-		switch currentProvider {
-		case config.BuiltInOpenAI:
-			provider = ai.NewOpenAIProvider(apiKey, settings.BaseURL, settings.Model, settings.Temperature)
-		case config.BuiltInClaude:
-			provider = ai.NewAnthropicProvider(apiKey, settings.BaseURL, settings.Model, settings.Temperature)
-		case config.BuiltInGemini:
-			provider = ai.NewGeminiProvider(apiKey, settings.BaseURL, settings.Model, settings.Temperature)
-		default:
-			return fmt.Errorf("unknown provider: %s", currentProvider)
-		}
+	case name == config.BuiltInOpenAI:
+		provider = ai.NewOpenAIProvider(apiKey, settings.BaseURL, settings.Model, settings.Temperature)
+	case name == config.BuiltInClaude:
+		provider = ai.NewAnthropicProvider(apiKey, settings.BaseURL, settings.Model, settings.Temperature)
+	case name == config.BuiltInGemini:
+		provider = ai.NewGeminiProvider(apiKey, settings.BaseURL, settings.Model, settings.Temperature)
+	default:
+		return nil, fmt.Errorf("unknown provider: %s", name)
 	}
 
-	applyReasoning(provider, settings)
+	if aware, ok := provider.(ai.ReasoningAware); ok {
+		aware.SetLowReasoning(settings.LowReasoning)
+	}
+	return provider, nil
+}
 
-	p.providerFactory.Register(currentProvider, provider)
-	p.providerFactory.SetCurrent(currentProvider)
+func (p *Processor) providerNamed(name string) (ai.Provider, error) {
+	if provider, err := p.providerFactory.Get(name); err == nil {
+		return provider, nil
+	}
 
-	logger.Info("AI provider initialized", "provider", currentProvider, "custom", settings.IsCustom)
-	return nil
+	provider, err := p.buildProvider(p.currentConfig(), name)
+	if err != nil {
+		return nil, err
+	}
+
+	p.providerFactory.Register(name, provider)
+	return provider, nil
 }
 
 // begin takes the one-at-a-time guard. Two overlapping runs would fight over the clipboard, a
@@ -121,8 +143,8 @@ func (p *Processor) begin() (func(), error) {
 	p.mu.Lock()
 	if p.processing {
 		p.mu.Unlock()
-		logger.Warn("Already processing a revision")
-		return nil, fmt.Errorf("already processing a revision, please wait")
+		logger.Warn("Already processing an action")
+		return nil, fmt.Errorf("already processing, please wait")
 	}
 	p.processing = true
 	p.mu.Unlock()
@@ -145,17 +167,23 @@ func outcomeError(outcome input.CaptureOutcome) error {
 	}
 }
 
-// ProcessSelectAll selects the whole field, revises it, and writes the result back.
-func (p *Processor) ProcessSelectAll() error {
+// Run captures text for the action, transforms it, and writes it back.
+func (p *Processor) Run(kind config.ActionKind) error {
 	release, err := p.begin()
 	if err != nil {
 		return err
 	}
 	defer release()
 
-	logger.Info("Starting select all revision")
+	selectAll := kind.SelectsAll()
+	logger.Info("Action started", "action", kind)
 
-	text, outcome, err := p.clipboardManager.CaptureAll()
+	capture := p.clipboardManager.CaptureSelection
+	if selectAll {
+		capture = p.clipboardManager.CaptureAll
+	}
+
+	text, outcome, err := capture()
 	if err != nil {
 		return err
 	}
@@ -163,132 +191,200 @@ func (p *Processor) ProcessSelectAll() error {
 		return err
 	}
 
-	revisedText, err := p.reviseText(text)
+	result, err := p.transform(text, kind)
 	if err != nil {
 		p.clipboardManager.Abandon()
-		return fmt.Errorf("failed to revise text: %w", err)
+		return err
 	}
 
-	// Selected again: a field can drop its selection while the model is working, and pasting
-	// without one inserts the revision beside the original instead of replacing it.
-	if err := input.FFISimulateSelectAll(); err != nil {
-		p.clipboardManager.Abandon()
-		return fmt.Errorf("failed to select all for paste: %w", err)
+	// Select again: a field can drop its selection while the model is working, and pasting
+	// without one inserts the result beside the original instead of replacing it.
+	if selectAll {
+		if err := input.FFISimulateSelectAll(); err != nil {
+			p.clipboardManager.Abandon()
+			return fmt.Errorf("failed to select all for paste: %w", err)
+		}
 	}
 
-	if err := p.clipboardManager.ReplaceSelectedText(revisedText); err != nil {
+	if err := p.clipboardManager.ReplaceSelectedText(result); err != nil {
 		return fmt.Errorf("failed to replace text: %w", err)
 	}
 
-	logger.Info("Select all revision completed")
+	p.recordHistory(kind, text, result, "")
+	logger.Info("Action completed", "action", kind)
 	return nil
 }
 
-// ProcessSelection revises whatever the user has selected, leaving the rest of the field alone.
-func (p *Processor) ProcessSelection() error {
-	release, err := p.begin()
-	if err != nil {
-		return err
-	}
-	defer release()
-
-	logger.Info("Starting selection revision")
-
-	text, outcome, err := p.clipboardManager.CaptureSelection()
-	if err != nil {
-		return err
-	}
-	if err := outcomeError(outcome); err != nil {
-		return err
-	}
-
-	revisedText, err := p.reviseText(text)
-	if err != nil {
-		p.clipboardManager.Abandon()
-		return fmt.Errorf("failed to revise text: %w", err)
-	}
-
-	if err := p.clipboardManager.ReplaceSelectedText(revisedText); err != nil {
-		return fmt.Errorf("failed to replace selected text: %w", err)
-	}
-
-	logger.Info("Selection revision completed")
-	return nil
+// RecordSpeech stores a finished dictation. Raw and final differ when the
+// AI cleanup pass ran; showing both is what makes the history useful.
+func (p *Processor) History() *history.Store {
+	return p.history
 }
 
-func (p *Processor) reviseText(text string) (string, error) {
-	p.mu.Lock()
-	cfg := p.config
-	p.mu.Unlock()
-
-	mentionedProvider, cleanedText, hasMention := p.parseProviderMention(text)
-
-	textToRevise := text
-	if hasMention && mentionedProvider != "" {
-		textToRevise = cleanedText
+// RecordSpeech stores a finished dictation. Raw and final differ when the
+// AI cleanup pass ran; showing both is what makes the history useful.
+func (p *Processor) RecordSpeech(raw, final string) {
+	model := ""
+	if m, ok := stt.FindModel(p.currentConfig().Speech.ModelID); ok {
+		model = m.Name
 	}
 
-	trimmedText := strings.TrimSpace(textToRevise)
-	if trimmedText == "" {
-		return "", fmt.Errorf("text is empty or contains only whitespace")
+	p.history.Add(history.Entry{
+		Kind:       history.KindSpeech,
+		Original:   raw,
+		Result:     final,
+		Model:      model,
+		Characters: utf8.RuneCountInString(final),
+	})
+}
+
+// recordHistory stores a finished action. It never blocks the caller: history
+// is a convenience, not a dependency.
+func (p *Processor) recordHistory(kind config.ActionKind, original, result, model string) {
+	cfg := p.currentConfig()
+
+	entry := history.Entry{
+		Kind:       history.Kind(kind.Operation()),
+		Original:   original,
+		Result:     result,
+		Provider:   cfg.GetCurrentProvider(),
+		Model:      model,
+		Characters: utf8.RuneCountInString(result),
+	}
+	if kind.Operation() == config.OpTranslate {
+		entry.FromLang = language.Find(cfg.Translate.PrimaryLanguage).Name
+		entry.ToLang = language.Find(cfg.Translate.SecondaryLanguage).Name
+	}
+	p.history.Add(entry)
+}
+
+func (p *Processor) transform(text string, kind config.ActionKind) (string, error) {
+	cfg := p.currentConfig()
+	operation := cfg.Operation(kind.Operation())
+
+	mentioned, cleanedText, hasMention := p.parseProviderMention(cfg, text)
+
+	source := text
+	if hasMention {
+		source = cleanedText
+	}
+
+	trimmed := strings.TrimSpace(source)
+	if trimmed == "" {
+		return "", fmt.Errorf("nothing to work with - the selection is empty")
 	}
 
 	// Counted in characters, not bytes: an accented letter is two bytes in UTF-8, so len() halved
 	// the limit for exactly the text this app exists to correct.
-	if characters := utf8.RuneCountInString(trimmedText); characters > cfg.Revision.CharacterLimit {
-		return "", fmt.Errorf("text exceeds character limit (%d > %d)",
-			characters, cfg.Revision.CharacterLimit)
+	if characters := utf8.RuneCountInString(trimmed); characters > operation.CharacterLimit {
+		return "", fmt.Errorf("selection is %d characters, over the %d limit",
+			characters, operation.CharacterLimit)
 	}
 
-	var provider ai.Provider
-	if hasMention && mentionedProvider != "" {
-		var err error
-		provider, err = p.getOrCreateProvider(mentionedProvider)
-		if err != nil {
-			logger.Warn("Failed to use mentioned provider, using default",
-				"mentioned", mentionedProvider, "error", err)
-			provider = p.providerFactory.GetCurrent()
-			textToRevise = text
-		} else {
-			logger.Info("Using mentioned provider", "provider", mentionedProvider)
-		}
-	} else {
-		provider = p.providerFactory.GetCurrent()
+	provider, err := p.resolveProvider(cfg, kind.Operation(), mentioned)
+	if err != nil {
+		return "", err
 	}
 
-	if provider == nil {
-		return "", fmt.Errorf("no AI provider configured - please configure your API key in Settings")
-	}
-
-	timeout := time.Duration(p.config.Revision.TimeoutSeconds) * time.Second
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(),
+		time.Duration(operation.TimeoutSeconds)*time.Second)
 	defer cancel()
 
 	logger.Info("Sending text to AI provider",
+		"action", kind,
 		"provider", provider.GetName(),
 		"model", provider.GetModel(),
-		"temperature", provider.GetTemperature(),
-		"characters", utf8.RuneCountInString(trimmedText),
+		"characters", utf8.RuneCountInString(trimmed),
 	)
 
-	revised, err := provider.ReviseText(ctx, trimmedText, p.config.Revision.SystemPrompt)
+	answer, err := provider.ReviseText(ctx, trimmed, systemPrompt(cfg, kind.Operation(), operation))
 	if err != nil {
-		return "", fmt.Errorf("AI revision failed: %w", err)
+		return "", fmt.Errorf("%s failed: %w", kind.Label(), err)
 	}
 
-	cleaned := ai.CleanResponse(revised)
+	cleaned := ai.CleanResponse(answer)
 	if cleaned == "" {
-		return "", fmt.Errorf("AI provider returned empty response")
+		return "", fmt.Errorf("the model returned an empty result")
 	}
-
-	logger.Info("Text revised successfully",
-		"original_characters", utf8.RuneCountInString(trimmedText),
-		"revised_characters", utf8.RuneCountInString(cleaned),
-	)
 
 	// The reply replaces the selection as it was, so the selection's own edges go back on. Without
 	// them "word " returns as "word" and runs into the next one.
-	return leadingWhitespace(textToRevise) + cleaned + trailingWhitespace(textToRevise), nil
+	return leadingWhitespace(source) + cleaned + trailingWhitespace(source), nil
+}
+
+func systemPrompt(cfg *config.Config, op config.Operation, operation config.OperationConfig) string {
+	template := operation.PromptOrDefault(op)
+	if op != config.OpTranslate {
+		return template
+	}
+
+	return prompt.RenderTranslate(template,
+		language.Find(cfg.Translate.PrimaryLanguage).Name,
+		language.Find(cfg.Translate.SecondaryLanguage).Name,
+	)
+}
+
+// resolveProvider prefers an @mention, then the action's own override, then the
+// default. A failed mention falls back rather than aborting the run.
+func (p *Processor) resolveProvider(cfg *config.Config, op config.Operation, mentioned string) (ai.Provider, error) {
+	if mentioned != "" {
+		provider, err := p.providerNamed(mentioned)
+		if err == nil {
+			logger.Info("Using mentioned provider", "provider", mentioned)
+			return provider, nil
+		}
+		logger.Warn("Mentioned provider unusable, falling back",
+			"mentioned", mentioned, "error", err)
+	}
+
+	provider, err := p.providerNamed(cfg.ProviderFor(op))
+	if err != nil {
+		return nil, fmt.Errorf("no AI provider configured - add an API key in Settings")
+	}
+	return provider, nil
+}
+
+func (p *Processor) IsProcessing() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.processing
+}
+
+func (p *Processor) Close() {
+	if p.clipboardManager != nil {
+		p.clipboardManager.Close()
+	}
+}
+
+// parseProviderMention strips a leading "@provider" and reports which provider
+// it named, so a selection can opt into a provider for one run.
+func (p *Processor) parseProviderMention(cfg *config.Config, text string) (provider, remainder string, ok bool) {
+	if !cfg.EnableProviderMentions {
+		return "", text, false
+	}
+
+	trimmed := strings.TrimSpace(text)
+	if !strings.HasPrefix(trimmed, "@") {
+		return "", text, false
+	}
+
+	mention, rest, _ := strings.Cut(trimmed, " ")
+	name, found := findProvider(cfg, strings.TrimPrefix(mention, "@"))
+	if !found {
+		return "", text, false
+	}
+
+	return name, strings.TrimSpace(rest), true
+}
+
+// findProvider matches case-insensitively and returns the stored spelling.
+func findProvider(cfg *config.Config, name string) (string, bool) {
+	for stored := range cfg.AIProvider.Providers {
+		if strings.EqualFold(stored, name) {
+			return stored, true
+		}
+	}
+	return "", false
 }
 
 func leadingWhitespace(text string) string {
@@ -299,132 +395,58 @@ func trailingWhitespace(text string) string {
 	return text[len(strings.TrimRightFunc(text, unicode.IsSpace)):]
 }
 
-// UpdateProvider updates the AI provider
-func (p *Processor) UpdateProvider(provider string) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.config.AIProvider.Provider = provider
-	return p.initializeProviders()
-}
-
-// IsProcessing returns whether the processor is currently processing
-func (p *Processor) IsProcessing() bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.processing
-}
-
-// Close releases the processor resources
-func (p *Processor) Close() {
-	if p.clipboardManager != nil {
-		p.clipboardManager.Close()
-	}
-}
-
-func (p *Processor) parseProviderMention(text string) (string, string, bool) {
-	p.mu.Lock()
-	cfg := p.config
-	p.mu.Unlock()
-
-	if !cfg.Revision.EnableProviderMentions {
-		return "", text, false
+// InsertText types text at the cursor without replacing a selection, for
+// dictation. SaveCurrent first so the user's clipboard survives.
+func (p *Processor) InsertText(text string) error {
+	if strings.TrimSpace(text) == "" {
+		return nil
 	}
 
-	trimmedText := strings.TrimSpace(text)
-	if !strings.HasPrefix(trimmedText, "@") {
-		return "", text, false
-	}
-
-	parts := strings.SplitN(trimmedText, " ", 2)
-	if len(parts) == 0 {
-		return "", text, false
-	}
-
-	mentionedName := strings.TrimPrefix(parts[0], "@")
-
-	// Case-insensitive lookup returns the actual stored provider name
-	actualProviderName, found := p.findProviderByName(mentionedName)
-	if !found {
-		return "", text, false
-	}
-
-	cleanedText := ""
-	if len(parts) > 1 {
-		cleanedText = strings.TrimSpace(parts[1])
-	}
-
-	return actualProviderName, cleanedText, true
-}
-
-// findProviderByName does a case-insensitive lookup and returns the actual stored provider name
-func (p *Processor) findProviderByName(name string) (string, bool) {
-	p.mu.Lock()
-	cfg := p.config
-	p.mu.Unlock()
-
-	if cfg.AIProvider.Providers == nil {
-		return "", false
-	}
-
-	nameLower := strings.ToLower(name)
-	for storedName := range cfg.AIProvider.Providers {
-		if strings.ToLower(storedName) == nameLower {
-			return storedName, true
-		}
-	}
-	return "", false
-}
-
-func (p *Processor) getOrCreateProvider(name string) (ai.Provider, error) {
-	if provider, err := p.providerFactory.Get(name); err == nil {
-		return provider, nil
-	}
-
-	p.mu.Lock()
-	cfg := p.config
-	p.mu.Unlock()
-
-	apiKey, err := cfg.GetAPIKey(name)
+	release, err := p.begin()
 	if err != nil {
-		return nil, fmt.Errorf("no API key configured for %s", name)
+		return err
 	}
+	defer release()
 
-	settings := cfg.GetProviderSettings(name)
-	if settings.RequiresAPIKey() && strings.TrimSpace(apiKey) == "" {
-		return nil, fmt.Errorf("no API key configured for %s", name)
+	if err := p.clipboardManager.SaveCurrent(); err != nil {
+		logger.Warn("Could not save the clipboard before dictating", "error", err)
 	}
-
-	var provider ai.Provider
-
-	if settings.IsCustom {
-		customProvider, err := ai.NewCustomProvider(name, settings.ProviderType, apiKey, settings.BaseURL, settings.Model, settings.Temperature)
-		if err != nil {
-			return nil, err
-		}
-		provider = customProvider
-	} else {
-		switch name {
-		case config.BuiltInOpenAI:
-			provider = ai.NewOpenAIProvider(apiKey, settings.BaseURL, settings.Model, settings.Temperature)
-		case config.BuiltInClaude:
-			provider = ai.NewAnthropicProvider(apiKey, settings.BaseURL, settings.Model, settings.Temperature)
-		case config.BuiltInGemini:
-			provider = ai.NewGeminiProvider(apiKey, settings.BaseURL, settings.Model, settings.Temperature)
-		default:
-			return nil, fmt.Errorf("unknown provider: %s", name)
-		}
-	}
-
-	applyReasoning(provider, settings)
-
-	p.providerFactory.Register(name, provider)
-	return provider, nil
+	return p.clipboardManager.ReplaceSelectedText(text)
 }
 
-// applyReasoning reaches only the providers that have a reasoning parameter to send.
-func applyReasoning(provider ai.Provider, settings config.ProviderSettings) {
-	if aware, ok := provider.(ai.ReasoningAware); ok {
-		aware.SetLowReasoning(settings.LowReasoning)
+// CleanTranscript tidies dictated text with the provider selected in the AI
+// tab, using the dedicated dictation prompt rather than an editable action
+// prompt, so unrelated instructions cannot change the task.
+func (p *Processor) CleanTranscript(text string) (string, error) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return "", nil
 	}
+
+	cfg := p.currentConfig()
+	provider, err := p.providerNamed(cfg.GetCurrentProvider())
+	if err != nil {
+		return "", fmt.Errorf("transcript cleanup unavailable: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(),
+		time.Duration(config.DefaultTimeoutSeconds)*time.Second)
+	defer cancel()
+
+	logger.Info("Cleaning dictated transcript",
+		"provider", provider.GetName(),
+		"model", provider.GetModel(),
+		"characters", utf8.RuneCountInString(trimmed),
+	)
+
+	cleaned, err := provider.ReviseText(ctx, trimmed, prompt.Dictate)
+	if err != nil {
+		return "", fmt.Errorf("transcript cleanup failed: %w", err)
+	}
+
+	cleaned = ai.CleanResponse(cleaned)
+	if cleaned == "" {
+		return "", fmt.Errorf("transcript cleanup returned empty text")
+	}
+	return cleaned, nil
 }

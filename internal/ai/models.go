@@ -55,11 +55,6 @@ func FetchModelsOpenAI(ctx context.Context, apiKey, baseURL string) ([]ModelInfo
 	return response.Data, nil
 }
 
-// FetchModels fetches available models from an OpenAI-compatible endpoint
-func FetchModels(ctx context.Context, apiKey, baseURL string) ([]ModelInfo, error) {
-	return FetchModelsOpenAI(ctx, apiKey, baseURL)
-}
-
 func truncateString(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s

@@ -6,20 +6,20 @@ import (
 	"path/filepath"
 )
 
+const appDirName = ".encre"
+
 func AppHomeDir(elem ...string) string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatal("Failed to get user home directory", "error", err)
 	}
 
-	parts := append([]string{homeDir, ".myreviser"}, elem...)
+	parts := append([]string{homeDir, appDirName}, elem...)
 	return filepath.Join(parts...)
 }
 
-// Ensure app home directory created
 func EnsureAppHomeDir() {
-	appDir := AppHomeDir()
-	if err := os.MkdirAll(appDir, 0755); err != nil {
-		log.Fatal("Failed to create lock directory", "error", err)
+	if err := os.MkdirAll(AppHomeDir(), 0755); err != nil {
+		log.Fatal("Failed to create app home directory", "error", err)
 	}
 }

@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"unicode"
 
-	"github.com/paradoxe35/myreviser/internal/utils"
+	locale "github.com/jeandeaual/go-locale"
+	"github.com/paradoxe35/encre/internal/language"
+	"github.com/paradoxe35/encre/internal/utils"
 )
 
 const (
@@ -20,15 +21,24 @@ const (
 	BuiltInOpenAI = "openai"
 	BuiltInClaude = "claude"
 	BuiltInGemini = "gemini"
+
+	DefaultCharacterLimit = 1000
+	DefaultTimeoutSeconds = 30
 )
 
 type Config struct {
 	mu         sync.RWMutex
-	AIProvider AIProviderConfig `json:"ai_provider"`
-	Hotkeys    HotkeyConfig     `json:"hotkeys"`
-	Revision   RevisionConfig   `json:"revision"`
-	Appearance AppearanceConfig `json:"appearance"`
-	Meta       MetaConfig       `json:"meta"`
+	AIProvider AIProviderConfig              `json:"ai_provider"`
+	Actions    map[ActionKind]ActionConfig   `json:"actions"`
+	Operations map[Operation]OperationConfig `json:"operations"`
+	Translate  TranslateConfig               `json:"translate"`
+	Speech     SpeechConfig                  `json:"speech"`
+	Appearance AppearanceConfig              `json:"appearance"`
+	Meta       MetaConfig                    `json:"meta"`
+
+	// EnableProviderMentions lets a selection opt into a provider by starting
+	// with "@name". Applies to every AI-backed action.
+	EnableProviderMentions bool `json:"enable_provider_mentions"`
 }
 
 type ProviderSettings struct {
@@ -55,16 +65,9 @@ type AIProviderConfig struct {
 	Providers map[string]ProviderSettings `json:"providers"`
 }
 
-type HotkeyConfig struct {
-	SelectAll string `json:"select_all"`
-	Selection string `json:"selection"`
-}
-
-type RevisionConfig struct {
-	CharacterLimit         int    `json:"character_limit"`
-	SystemPrompt           string `json:"system_prompt"`
-	TimeoutSeconds         int    `json:"timeout_seconds"`
-	EnableProviderMentions bool   `json:"enable_provider_mentions"`
+type TranslateConfig struct {
+	PrimaryLanguage   string `json:"primary_language"`
+	SecondaryLanguage string `json:"secondary_language"`
 }
 
 type AppearanceConfig struct {
@@ -84,7 +87,7 @@ var (
 	listenerMutex sync.RWMutex
 )
 
-const APP_ID = "me.pngwasi.myreviser"
+const APP_ID = "me.pngwasi.encre"
 
 // ConfigPath returns the path to the configuration file
 func ConfigPath() string {
@@ -114,48 +117,17 @@ func Default() *Config {
 				},
 			},
 		},
-		Hotkeys:    GetPlatformHotkeys(),
-		Revision:   GetDefaultRevision(),
-		Appearance: GetDefaultAppearance(),
-		Meta:       MetaConfig{FirstRun: true},
-	}
-}
-
-// GetPlatformHotkeys returns platform-specific hotkey defaults
-func GetPlatformHotkeys() HotkeyConfig {
-	switch runtime.GOOS {
-	case "darwin":
-		return HotkeyConfig{
-			SelectAll: "ctrl+option+space",
-			Selection: "ctrl+cmd",
-		}
-	case "windows":
-		return HotkeyConfig{
-			SelectAll: "ctrl+alt+space",
-			Selection: "ctrl+win",
-		}
-	default: // Linux
-		return HotkeyConfig{
-			SelectAll: "ctrl+alt+space",
-			Selection: "ctrl+super",
-		}
-	}
-}
-
-// GetDefaultRevision returns default revision settings
-func GetDefaultRevision() RevisionConfig {
-	return RevisionConfig{
-		CharacterLimit: 1000,
-		SystemPrompt: "You are a multilingual text enhancer: fix errors, improve clarity and quality " +
-			"while preserving tone, context, and intent in the original language. " +
-			"Return only the enhanced version without additional text.",
-		TimeoutSeconds:         30,
+		Actions:                DefaultActions(),
+		Operations:             DefaultOperations(),
+		Translate:              defaultTranslate(),
+		Speech:                 defaultSpeech(),
+		Appearance:             defaultAppearance(),
+		Meta:                   MetaConfig{FirstRun: true},
 		EnableProviderMentions: true,
 	}
 }
 
-// GetDefaultAppearance returns default appearance settings
-func GetDefaultAppearance() AppearanceConfig {
+func defaultAppearance() AppearanceConfig {
 	return AppearanceConfig{
 		Theme:          "auto",
 		StartMinimized: false,
@@ -163,29 +135,25 @@ func GetDefaultAppearance() AppearanceConfig {
 	}
 }
 
-// Load loads the configuration from disk
+// Load reads the configuration from disk, writing defaults on first run.
 func Load() (*Config, error) {
 	configMutex.Lock()
 	defer configMutex.Unlock()
 
-	// Ensure config directory exists
 	configDir := filepath.Dir(ConfigPath())
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Check if config file exists
 	if _, err := os.Stat(ConfigPath()); os.IsNotExist(err) {
-		// Create default config
 		cfg := Default()
-		if err := cfg.Save(); err != nil {
+		if err := cfg.write(); err != nil {
 			return nil, fmt.Errorf("failed to save default config: %w", err)
 		}
 		currentConfig = cfg
 		return cfg, nil
 	}
 
-	// Read config file
 	data, err := os.ReadFile(ConfigPath())
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -197,16 +165,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	// Set defaults for any missing fields
-	if cfg.Revision.CharacterLimit == 0 {
-		cfg.Revision.CharacterLimit = 1000
-	}
-	if cfg.Revision.TimeoutSeconds == 0 {
-		cfg.Revision.TimeoutSeconds = 30
-	}
-	if cfg.Revision.SystemPrompt == "" {
-		cfg.Revision.SystemPrompt = GetDefaultRevision().SystemPrompt
-	}
+	cfg.applyDefaults()
 
 	if cfg.AIProvider.Providers != nil {
 		for name, settings := range cfg.AIProvider.Providers {
@@ -221,28 +180,34 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// Save saves the configuration to disk
-func (c *Config) Save() error {
-	c.mu.Lock()
+// write persists the config without touching the package mutex, so callers
+// that already hold it do not deadlock against themselves.
+func (c *Config) write() error {
+	c.mu.RLock()
 	data, err := json.MarshalIndent(c, "", "  ")
+	c.mu.RUnlock()
+
 	if err != nil {
-		c.mu.Unlock()
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
 	if err := os.WriteFile(ConfigPath(), data, 0644); err != nil {
-		c.mu.Unlock()
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
-	c.mu.Unlock()
+	return nil
+}
 
-	// Update global config and notify listeners
+// Save persists the config, publishes it as current, and notifies listeners.
+func (c *Config) Save() error {
+	if err := c.write(); err != nil {
+		return err
+	}
+
 	configMutex.Lock()
 	currentConfig = c
 	configMutex.Unlock()
 
 	notifyListeners(c)
-
 	return nil
 }
 
@@ -253,17 +218,19 @@ func Get() *Config {
 	return currentConfig
 }
 
-// Update updates the configuration with the given function
+// Update mutates the live configuration and persists it. Save takes the same
+// package mutex, so the lock is released before calling it.
 func Update(fn func(*Config)) error {
-	configMutex.Lock()
-	defer configMutex.Unlock()
+	configMutex.RLock()
+	cfg := currentConfig
+	configMutex.RUnlock()
 
-	if currentConfig == nil {
+	if cfg == nil {
 		return fmt.Errorf("configuration not loaded")
 	}
 
-	fn(currentConfig)
-	return currentConfig.Save()
+	fn(cfg)
+	return cfg.Save()
 }
 
 func RegisterListener(listener func(*Config)) {
@@ -279,15 +246,6 @@ func notifyListeners(cfg *Config) {
 	for _, listener := range listeners {
 		go listener(cfg)
 	}
-}
-
-// Reload reloads the configuration from disk and notifies listeners
-func Reload() (*Config, error) {
-	cfg, err := Load()
-	if err == nil {
-		notifyListeners(cfg)
-	}
-	return cfg, err
 }
 
 // GetProviderSettings returns settings for a specific provider
@@ -380,6 +338,43 @@ func (c *Config) GetAllProviderNames() []string {
 	return names
 }
 
+// GetConfiguredProviderNames returns providers that have enough configuration
+// to be used by an AI-backed operation. Built-ins require a model and API key;
+// custom providers may omit the key when NoAPIKey is enabled, but still need a
+// model and endpoint.
+func (c *Config) GetConfiguredProviderNames() []string {
+	c.mu.RLock()
+	providers := make(map[string]ProviderSettings, len(c.AIProvider.Providers))
+	for name, settings := range c.AIProvider.Providers {
+		providers[name] = settings
+	}
+	c.mu.RUnlock()
+
+	configured := make([]string, 0, len(providers))
+	for name, settings := range providers {
+		if strings.TrimSpace(settings.Model) == "" || strings.TrimSpace(settings.BaseURL) == "" {
+			continue
+		}
+		if settings.RequiresAPIKey() {
+			apiKey, err := c.GetAPIKey(name)
+			if err != nil || strings.TrimSpace(apiKey) == "" {
+				continue
+			}
+		}
+		configured = append(configured, name)
+	}
+
+	sort.SliceStable(configured, func(i, j int) bool {
+		leftBuiltIn := IsBuiltInProvider(configured[i])
+		rightBuiltIn := IsBuiltInProvider(configured[j])
+		if leftBuiltIn != rightBuiltIn {
+			return leftBuiltIn
+		}
+		return strings.ToLower(configured[i]) < strings.ToLower(configured[j])
+	})
+	return configured
+}
+
 func isValidProviderName(name string) bool {
 	if name == "" {
 		return false
@@ -455,4 +450,51 @@ func (c *Config) IsCustomProvider(name string) bool {
 		return settings.IsCustom
 	}
 	return false
+}
+
+func defaultTranslate() TranslateConfig {
+	primary, secondary := language.Defaults(osLocale())
+	return TranslateConfig{PrimaryLanguage: primary, SecondaryLanguage: secondary}
+}
+
+func osLocale() string {
+	tag, err := locale.GetLocale()
+	if err != nil {
+		return "en"
+	}
+	return strings.ReplaceAll(tag, "_", "-")
+}
+
+// applyDefaults fills anything a hand-edited config left out, so a partial file
+// still starts rather than booting with zero-valued hotkeys and limits.
+func (c *Config) applyDefaults() {
+	if c.Actions == nil {
+		c.Actions = DefaultActions()
+	} else {
+		defaults := DefaultActions()
+		for _, kind := range ActionOrder {
+			action, ok := c.Actions[kind]
+			if !ok || action.Hotkey == "" {
+				c.Actions[kind] = defaults[kind]
+			}
+		}
+	}
+
+	if c.Operations == nil {
+		c.Operations = DefaultOperations()
+	} else {
+		for _, op := range OperationOrder {
+			c.Operations[op] = c.operationLocked(op)
+		}
+	}
+
+	if c.Translate.PrimaryLanguage == "" || c.Translate.SecondaryLanguage == "" {
+		c.Translate = defaultTranslate()
+	}
+	if c.Appearance.Theme == "" {
+		c.Appearance.Theme = defaultAppearance().Theme
+	}
+	if c.Speech.Engine == "" {
+		c.Speech.Engine = defaultSpeech().Engine
+	}
 }

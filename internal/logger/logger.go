@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/paradoxe35/myreviser/internal/utils"
+	"github.com/paradoxe35/encre/internal/utils"
 )
 
 var (
@@ -22,9 +22,9 @@ func Init() error {
 		return fmt.Errorf("failed to create log directory: %w", err)
 	}
 
-	// Use daily log file format: myreviser-2025-09-29.log
+	// Use daily log file format: encre-2025-09-29.log
 	today := time.Now().Format("2006-01-02")
-	logFile := filepath.Join(logDir, fmt.Sprintf("myreviser-%s.log", today))
+	logFile := filepath.Join(logDir, fmt.Sprintf("encre-%s.log", today))
 	currentLogFile = logFile
 
 	// Open log file with append mode
@@ -92,7 +92,7 @@ func GetCurrentLogFile() string {
 
 	// Fallback: construct path with today's date
 	today := time.Now().Format("2006-01-02")
-	return utils.AppHomeDir("logs", fmt.Sprintf("myreviser-%s.log", today))
+	return utils.AppHomeDir("logs", fmt.Sprintf("encre-%s.log", today))
 }
 
 // GetLogDirectory returns the path to the logs directory

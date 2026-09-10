@@ -1,268 +1,127 @@
-from PIL import Image, ImageDraw
+#!/usr/bin/env python3
+"""Generate Encre's icon set: an ink drop on a flat rounded tile."""
+
 import math
 import os
 
+from PIL import Image, ImageDraw
 
-def create_rounded_rectangle(
-    draw, coords, radius, fill, shadow_offset=0, shadow_color=None
-):
-    """Draw a rounded rectangle with optional shadow"""
-    x1, y1, x2, y2 = coords
+SUPERSAMPLE = 8
+CORNER_RATIO = 0.2237  # Apple's continuous-corner approximation
 
-    # Ensure coordinates are properly ordered
-    x1, x2 = min(x1, x2), max(x1, x2)
-    y1, y2 = min(y1, y2), max(y1, y2)
+TILE = (79, 70, 229)
+INK = (255, 255, 255)
 
-    # Ensure radius isn't too large
-    radius = min(radius, (x2 - x1) // 2, (y2 - y1) // 2)
+# A teardrop: apex on top, circular bottom, sides running along the tangents
+# from the apex to that circle. Straight tangents keep the silhouette crisp at
+# 16 px where a fussier curve turns to mush.
+DROP_CENTER_Y = 0.605
+DROP_RADIUS = 0.255
+DROP_APEX_Y = 0.145
 
-    # Draw shadow first if specified
-    if shadow_offset and shadow_color:
-        shadow_coords = (
-            x1 + shadow_offset,
-            y1 + shadow_offset,
-            x2 + shadow_offset,
-            y2 + shadow_offset,
-        )
-        # Shadow rectangle
-        draw.rectangle(
-            (
-                shadow_coords[0] + radius,
-                shadow_coords[1],
-                shadow_coords[2] - radius,
-                shadow_coords[3],
-            ),
-            fill=shadow_color,
-        )
-        draw.rectangle(
-            (
-                shadow_coords[0],
-                shadow_coords[1] + radius,
-                shadow_coords[2],
-                shadow_coords[3] - radius,
-            ),
-            fill=shadow_color,
-        )
-        # Shadow corners
-        for x, y in [
-            (shadow_coords[0] + radius, shadow_coords[1] + radius),
-            (shadow_coords[2] - radius, shadow_coords[1] + radius),
-            (shadow_coords[0] + radius, shadow_coords[3] - radius),
-            (shadow_coords[2] - radius, shadow_coords[3] - radius),
-        ]:
-            draw.ellipse(
-                (x - radius, y - radius, x + radius, y + radius), fill=shadow_color
-            )
-
-    # Main rectangle
-    draw.rectangle((x1 + radius, y1, x2 - radius, y2), fill=fill)
-    draw.rectangle((x1, y1 + radius, x2, y2 - radius), fill=fill)
-
-    # Corners
-    for x, y in [
-        (x1 + radius, y1 + radius),
-        (x2 - radius, y1 + radius),
-        (x1 + radius, y2 - radius),
-        (x2 - radius, y2 - radius),
-    ]:
-        draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=fill)
+APP_SIZES = [16, 20, 22, 24, 32, 36, 40, 48, 64, 72, 96, 128, 192, 256, 512, 1024]
+ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
+TRAY_SIZES = [16, 32, 48]
+TRAY_MARGIN = 0.06
 
 
-def create_arrow(draw, start_pos, end_pos, width, fill):
-    """Draw an arrow"""
-    # Draw arrow body
-    draw.line((start_pos, end_pos), fill=fill, width=width)
+def drop_outline():
+    center_y, radius, apex_y = DROP_CENTER_Y, DROP_RADIUS, DROP_APEX_Y
+    height = center_y - apex_y
 
-    # Calculate arrow head
-    angle = math.atan2(end_pos[1] - start_pos[1], end_pos[0] - start_pos[0])
-    arrow_length = width * 2
-    arrow_angle = math.pi / 6  # 30 degrees
+    # Where the tangent from the apex touches the circle.
+    cos_beta = radius / height
+    cos_beta = max(-1.0, min(1.0, cos_beta))
+    beta = math.acos(cos_beta)
 
-    x1 = end_pos[0] - arrow_length * math.cos(angle - arrow_angle)
-    y1 = end_pos[1] - arrow_length * math.sin(angle - arrow_angle)
-    x2 = end_pos[0] - arrow_length * math.cos(angle + arrow_angle)
-    y2 = end_pos[1] - arrow_length * math.sin(angle + arrow_angle)
+    points = [(0.5, apex_y)]
 
-    # Ensure coordinates are properly ordered for polygon
-    arrow_points = [
-        (int(end_pos[0]), int(end_pos[1])),
-        (int(x1), int(y1)),
-        (int(x2), int(y2)),
-    ]
-    draw.polygon(arrow_points, fill=fill)
+    steps = 96
+    start = -math.pi / 2 + beta          # right tangent point
+    end = start + (2 * math.pi - 2 * beta)  # sweep the long way, around the bottom
+    for i in range(steps + 1):
+        angle = start + (end - start) * i / steps
+        points.append((0.5 + radius * math.cos(angle), center_y + radius * math.sin(angle)))
+
+    return points
 
 
-def create_image(
-    width=256, height=256, primary_color="#4A90E2", accent_color="#2C3E50"
-):
-    """Create the Input Reviser icon with transparency"""
-    # Create base image with transparency
-    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
+def scaled(points, size):
+    return [(x * size, y * size) for x, y in points]
 
-    # Calculate dimensions - no outer padding, fill entire canvas
-    doc_height = height
 
-    # Add slight shadow for depth
-    shadow_color = (0, 0, 0, 60)  # Semi-transparent black
-    shadow_offset = max(width // 40, 1)  # Ensure minimum shadow offset of 1
+def drop_mask(size):
+    mask = Image.new("L", (size, size), 0)
+    draw = ImageDraw.Draw(mask)
 
-    # Calculate document offset for layered effect
-    back_doc_offset = max(width // 20, 1)  # Ensure minimum offset
-    front_doc_offset = max(width // 25, 1)  # Ensure minimum offset
+    draw.polygon(scaled(drop_outline(), size), fill=255)
+    return mask
 
-    # Draw main document shapes
-    # Back document with shadow (slightly offset)
-    create_rounded_rectangle(
-        draw,
-        (
-            back_doc_offset,
-            back_doc_offset,
-            width,
-            height,
-        ),
-        max(width // 20, 1),  # Ensure minimum radius of 1
-        accent_color,
-        shadow_offset,
-        shadow_color,
+
+def tile_mask(size):
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        (0, 0, size - 1, size - 1), radius=size * CORNER_RATIO, fill=255
+    )
+    return mask
+
+
+def filled(size, color, mask):
+    layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    layer.paste(Image.new("RGBA", (size, size), color + (255,)), (0, 0), mask)
+    return layer
+
+
+def app_icon(size):
+    work = size * SUPERSAMPLE
+    icon = filled(work, TILE, tile_mask(work))
+    icon.paste(Image.new("RGBA", (work, work), INK + (255,)), (0, 0), drop_mask(work))
+    return icon.resize((size, size), Image.LANCZOS)
+
+
+def tray_icon(size):
+    work = size * SUPERSAMPLE
+    glyph = filled(work, INK, drop_mask(work))
+    glyph = glyph.crop(glyph.getbbox())
+
+    inner = round(size * (1 - TRAY_MARGIN * 2))
+    scale = min(inner / glyph.width, inner / glyph.height)
+    glyph = glyph.resize(
+        (max(round(glyph.width * scale), 1), max(round(glyph.height * scale), 1)),
+        Image.LANCZOS,
     )
 
-    # Front document with shadow (fills most of canvas)
-    create_rounded_rectangle(
-        draw,
-        (
-            0,
-            0,
-            width - front_doc_offset,
-            height - front_doc_offset,
-        ),
-        max(width // 20, 1),  # Ensure minimum radius of 1
-        primary_color,
-        shadow_offset,
-        shadow_color,
-    )
-
-    # Draw "revision" arrows
-    arrow_spacing = max(height // 6, 3)  # Ensure minimum spacing
-    arrow_width = max(width // 40, 1)  # Ensure minimum width of 1
-    arrow_color = "#FFFFFF"  # White arrows
-
-    # Calculate arrow positions
-    doc_center_x = (width - front_doc_offset) // 2
-    doc_width_quarter = (width - front_doc_offset) // 4
-
-    # Draw three arrows suggesting revision/transformation
-    for i in range(3):
-        y_pos = doc_height // 4 + (i * arrow_spacing)
-        if i % 2 == 0:
-            # Left to right arrow
-            create_arrow(
-                draw,
-                (doc_center_x - doc_width_quarter, y_pos),
-                (doc_center_x + doc_width_quarter, y_pos),
-                arrow_width,
-                arrow_color,
-            )
-        else:
-            # Right to left arrow
-            create_arrow(
-                draw,
-                (doc_center_x + doc_width_quarter, y_pos),
-                (doc_center_x - doc_width_quarter, y_pos),
-                arrow_width,
-                arrow_color,
-            )
-
-    return image
+    icon = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    icon.paste(glyph, ((size - glyph.width) // 2, (size - glyph.height) // 2))
+    return icon
 
 
-# Example usage:
-if __name__ == "__main__":
-    # Get script directory
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(script_dir)
-    assets_dir = os.path.join(project_root, "assets")
-    build_dir = os.path.join(project_root, "build")
+def main():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    assets = os.path.join(root, "assets")
+    build = os.path.join(root, "build")
+    os.makedirs(assets, exist_ok=True)
+    os.makedirs(build, exist_ok=True)
 
-    # Ensure directories exist
-    os.makedirs(assets_dir, exist_ok=True)
-    os.makedirs(build_dir, exist_ok=True)
+    icons = {size: app_icon(size) for size in APP_SIZES}
+    for size, icon in icons.items():
+        icon.save(os.path.join(assets, f"icon_{size}.png"))
 
-    # All icon sizes needed:
-    # - Windows: 16, 20, 24, 32, 40, 48, 64, 128, 256
-    # - macOS: 16, 32, 64, 128, 256, 512, 1024
-    # - Linux: 16, 22, 24, 32, 36, 48, 64, 72, 96, 128, 192, 256, 512
-    # Combined unique sizes for all platforms
-    all_sizes = sorted(set([
-        16, 20, 22, 24, 32, 36, 40, 48, 64, 72, 96, 128, 192, 256, 512, 1024
-    ]))
-
-    icons = {}
-    print("Generating MyReviser icons for all platforms...")
-    print(f"Sizes: {all_sizes}")
-    print()
-
-    # Generate all sizes
-    for size in all_sizes:
-        icon = create_image(
-            size,
-            size,
-            primary_color="#4A90E2",  # Bright blue
-            accent_color="#2C3E50",  # Dark blue
-        )
-        icons[size] = icon
-
-        # Save individual PNG files (useful for Linux)
-        output_file = os.path.join(assets_dir, f"icon_{size}.png")
-        icon.save(output_file, format="PNG")
-        print(f"  ✓ Created icon_{size}.png")
-
-    # Save main icon.png (256x256) - standard size
-    main_icon = os.path.join(assets_dir, "icon.png")
-    icons[256].save(main_icon, format="PNG")
-    print(f"\n  ✓ Created main icon.png (256x256)")
-
-    # Save the build/appicon.png for Wails (highest quality)
-    build_icon = os.path.join(build_dir, "appicon.png")
-    icons[1024].save(build_icon, format="PNG")
-    print(f"  ✓ Created build/appicon.png (1024x1024 for Wails)")
-
-    # Save ICO file for Windows with multiple sizes
-    ico_file = os.path.join(assets_dir, "icon.ico")
-    # Windows ICO recommended sizes (ICO format max is 256x256)
-    win_sizes = [16, 24, 32, 48, 64, 128, 256]
-
-    # Create ICO with all sizes properly embedded
-    # The first image should be the largest for best quality
+    icons[256].save(os.path.join(assets, "icon.png"))
+    icons[1024].save(os.path.join(build, "appicon.png"))
     icons[256].save(
-        ico_file,
+        os.path.join(assets, "icon.ico"),
         format="ICO",
-        sizes=[(size, size) for size in win_sizes]
+        sizes=[(s, s) for s in ICO_SIZES],
     )
-    print(f"  ✓ Created icon.ico (Windows, multi-resolution: {win_sizes})")
 
-    # Create special Linux sizes that might be needed
-    linux_special = {
-        'icon_22.png': 22,   # Some older Ubuntu versions
-        'icon_36.png': 36,   # Some desktop environments
-        'icon_72.png': 72,   # Retina displays
-        'icon_96.png': 96,   # Large icons
-        'icon_192.png': 192, # Extra large icons
-    }
+    for size in TRAY_SIZES:
+        tray_icon(size).save(os.path.join(assets, f"icon-{size}x{size}.png"))
 
-    print("\n  Special Linux sizes:")
-    for filename, size in linux_special.items():
-        if size in icons:
-            print(f"    ✓ {filename} already created")
+    print(f"app icons   {APP_SIZES}")
+    print(f"windows ico {ICO_SIZES}")
+    print(f"tray icons  {TRAY_SIZES} (monochrome)")
 
-    print("\n✨ Icon generation complete!")
-    print("\nGenerated icons for:")
-    print("  • Windows: ICO with sizes 16, 24, 32, 48, 64, 128, 256")
-    print("  • macOS: Will use appicon.png to generate ICNS")
-    print("  • Linux: PNG files in all standard sizes")
 
-    print("\n📋 Next steps:")
-    print("1. Run: cd .. && wails3 generate icons -input build/appicon.png")
-    print("2. The ICNS file will be generated at: build/darwin/icons.icns")
-    print("3. Copy to assets: cp build/darwin/icons.icns assets/icon.icns")
-    print("4. Build the application")
+if __name__ == "__main__":
+    main()

@@ -1,12 +1,12 @@
 [Details]
   Icon = "assets/icon.png"
-  Name = "MyReviser"
-  ID = "me.pngwasi.myreviser"
+  Name = "Encre"
+  ID = "me.pngwasi.encre"
   Version = "0.1.0"
   Build = 0
 
 [LinuxAndBSD]
-  GenericName = "Text Revision Tool"
+  GenericName = "Writing Assistant"
   Categories = ["Utility", "Office"]
-  Comment = "AI-powered text revision tool"
-  Keywords = ["text", "revision", "ai"]
+  Comment = "Revise, translate and dictate text anywhere"
+  Keywords = ["text", "revision", "translate", "dictation", "speech", "ai"]

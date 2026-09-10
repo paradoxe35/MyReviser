@@ -1,8 +1,8 @@
 # =============================================================================
-# Makefile for MyReviser - AI-Powered Text Revision Tool
+# Makefile for Encre - AI-Powered Text Revision Tool
 # =============================================================================
 #
-# MyReviser is built with Go (Fyne UI) + Rust FFI (rdev, arboard, enigo)
+# Encre is built with Go (Fyne UI) + Rust FFI (rdev, arboard, enigo)
 # This Makefile handles cross-platform builds with static linking.
 #
 # Quick Start:
@@ -85,7 +85,7 @@ all: build
 # ============================================================================
 help:
 	@echo "════════════════════════════════════════════════════════════════════════════"
-	@echo "MyReviser Makefile - Rust FFI + Go Static Build"
+	@echo "Encre Makefile - Rust FFI + Go Static Build"
 	@echo "════════════════════════════════════════════════════════════════════════════"
 	@echo ""
 	@echo "📦 Current Environment:"
@@ -143,20 +143,23 @@ help:
 # Install Dependencies
 # ============================================================================
 install-deps:
-	@echo "Installing dependencies for $(CURRENT_OS)..."
-	@echo "Installing Go dependencies..."
-	go mod download
-	go mod tidy
-	@echo "Installing Rust toolchain..."
-	@command -v rustc >/dev/null 2>&1 || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-	@echo "Installing Rust target: $(RUST_TARGET)..."
-	rustup target add $(RUST_TARGET)
+	@echo "Checking build dependencies for $(CURRENT_OS)..."
+	@command -v go >/dev/null 2>&1 || { echo "Missing: go"; exit 1; }
+	@command -v rustc >/dev/null 2>&1 || { echo "Missing: rustc"; exit 1; }
+	@command -v cargo >/dev/null 2>&1 || { echo "Missing: cargo"; exit 1; }
 ifeq ($(CURRENT_OS),linux)
-	@echo "Installing musl-tools for static builds..."
+	@command -v cmake >/dev/null 2>&1 || { echo "Missing: cmake"; exit 1; }
+	@command -v pkg-config >/dev/null 2>&1 || { echo "Missing: pkg-config"; exit 1; }
+	@pkg-config --exists alsa || { echo "Missing ALSA development files: libasound2-dev"; exit 1; }
+	@test -f /usr/include/wayland-client-core.h || { echo "Missing Wayland development files: libwayland-dev"; exit 1; }
+endif
+ifeq ($(CURRENT_OS),linux)
+ifdef STATIC
 	@command -v musl-gcc >/dev/null 2>&1 || { \
-		echo "Please install musl-tools:"; \
-		echo "  sudo apt-get install musl-tools libx11-dev libxtst-dev"; \
+		echo "Missing musl-gcc. Install it with: sudo apt-get install musl-tools"; \
+		exit 1; \
 	}
+endif
 endif
 ifeq ($(CURRENT_OS),darwin)
 	@echo "Checking for Xcode Command Line Tools..."
@@ -165,7 +168,7 @@ ifeq ($(CURRENT_OS),darwin)
 		echo "  xcode-select --install"; \
 	}
 endif
-	@echo "Dependencies check complete!"
+	@echo "Build dependencies are available."
 
 # ============================================================================
 # Build Rust FFI Static Library
@@ -179,7 +182,7 @@ build-rust:
 		RUSTFLAGS="-C target-feature=+crt-static" \
 		cargo build --release --target $(RUST_TARGET)
 	@echo "Copying static library to $(LIB_DIR)..."
-	cp $(RUST_FFI_DIR)/target/$(RUST_TARGET)/release/libmyreviser_ffi.$(LIB_EXT) $(LIB_DIR)/
+	cp $(RUST_FFI_DIR)/target/$(RUST_TARGET)/release/libencre_ffi.$(LIB_EXT) $(LIB_DIR)/
 	@echo "Copying C header bindings..."
 	test -f $(RUST_FFI_DIR)/bindings.h && cp $(RUST_FFI_DIR)/bindings.h $(RUST_FFI_DIR)/ || true
 	@echo "Rust FFI library built successfully!"
@@ -192,7 +195,7 @@ build-rust-linux:
 		rustup target add x86_64-unknown-linux-musl && \
 		RUSTFLAGS="-C target-feature=+crt-static" \
 		cargo build --release --target x86_64-unknown-linux-musl
-	cp $(RUST_FFI_DIR)/target/x86_64-unknown-linux-musl/release/libmyreviser_ffi.a $(LIB_DIR)/
+	cp $(RUST_FFI_DIR)/target/x86_64-unknown-linux-musl/release/libencre_ffi.a $(LIB_DIR)/
 	@echo "Linux Rust FFI library built!"
 
 # Build for macOS (current architecture)
@@ -202,7 +205,7 @@ build-rust-darwin:
 	cd $(RUST_FFI_DIR) && \
 		rustup target add $(RUST_TARGET) && \
 		cargo build --release --target $(RUST_TARGET)
-	cp $(RUST_FFI_DIR)/target/$(RUST_TARGET)/release/libmyreviser_ffi.a $(LIB_DIR)/
+	cp $(RUST_FFI_DIR)/target/$(RUST_TARGET)/release/libencre_ffi.a $(LIB_DIR)/
 	@echo "macOS Rust FFI library built for $(CURRENT_ARCH)!"
 
 # Build for macOS Intel (x86_64)
@@ -212,7 +215,7 @@ build-rust-darwin-amd64:
 	cd $(RUST_FFI_DIR) && \
 		rustup target add x86_64-apple-darwin && \
 		cargo build --release --target x86_64-apple-darwin
-	cp $(RUST_FFI_DIR)/target/x86_64-apple-darwin/release/libmyreviser_ffi.a $(LIB_DIR)/
+	cp $(RUST_FFI_DIR)/target/x86_64-apple-darwin/release/libencre_ffi.a $(LIB_DIR)/
 	@echo "macOS Intel Rust FFI library built!"
 
 # Build for macOS Apple Silicon (ARM64)
@@ -222,7 +225,7 @@ build-rust-darwin-arm64:
 	cd $(RUST_FFI_DIR) && \
 		rustup target add aarch64-apple-darwin && \
 		cargo build --release --target aarch64-apple-darwin
-	cp $(RUST_FFI_DIR)/target/aarch64-apple-darwin/release/libmyreviser_ffi.a $(LIB_DIR)/
+	cp $(RUST_FFI_DIR)/target/aarch64-apple-darwin/release/libencre_ffi.a $(LIB_DIR)/
 	@echo "macOS Apple Silicon Rust FFI library built!"
 
 # Build for Windows (MinGW)
@@ -233,7 +236,7 @@ build-rust-windows:
 		rustup target add x86_64-pc-windows-gnu && \
 		RUSTFLAGS="-C target-feature=+crt-static" \
 		cargo build --release --target x86_64-pc-windows-gnu
-	cp $(RUST_FFI_DIR)/target/x86_64-pc-windows-gnu/release/libmyreviser_ffi.a $(LIB_DIR)/
+	cp $(RUST_FFI_DIR)/target/x86_64-pc-windows-gnu/release/libencre_ffi.a $(LIB_DIR)/
 	@echo "Windows Rust FFI library built!"
 
 # ============================================================================
@@ -245,8 +248,8 @@ bundle-assets: ensure-fyne
 
 ensure-fyne:
 	@command -v fyne >/dev/null 2>&1 || { \
-		echo "Installing Fyne CLI..."; \
-		go install fyne.io/tools/cmd/fyne@latest; \
+		echo "Missing Fyne CLI. Install it with: go install fyne.io/tools/cmd/fyne@v1.7.2"; \
+		exit 1; \
 	}
 
 # ============================================================================
@@ -255,7 +258,7 @@ ensure-fyne:
 build-go: bundle-assets ensure-fyne
 	@echo "Building Go application with Fyne for $(CURRENT_OS)..."
 	@mkdir -p $(BIN_DIR)
-	@test -f $(LIB_DIR)/libmyreviser_ffi.a || { \
+	@test -f $(LIB_DIR)/libencre_ffi.a || { \
 		echo "Error: Rust FFI library not found. Run 'make build-rust' first."; \
 		exit 1; \
 	}
@@ -266,46 +269,46 @@ build-go: bundle-assets ensure-fyne
 		--app-build "$(BUILD_NUMBER)"
 	@# Extract the built binary from the package
 ifeq ($(CURRENT_OS),linux)
-	@if [ -f MyReviser.tar.xz ]; then \
-		tar -xf MyReviser.tar.xz; \
+	@if [ -f Encre.tar.xz ]; then \
+		tar -xf Encre.tar.xz; \
 		BINARY=$$(find usr/local/bin -type f -executable | head -n 1); \
 		if [ -n "$$BINARY" ]; then \
 			mkdir -p $(BIN_DIR); \
-			cp "$$BINARY" $(BIN_DIR)/myreviser$(BIN_EXT); \
-			rm -rf usr MyReviser.tar.xz; \
+			cp "$$BINARY" $(BIN_DIR)/encre$(BIN_EXT); \
+			rm -rf usr Encre.tar.xz; \
 		fi; \
 	fi
 endif
 ifeq ($(CURRENT_OS),darwin)
-	@if [ -d MyReviser.app ]; then \
+	@if [ -d Encre.app ]; then \
 		mkdir -p $(BIN_DIR); \
-		mv MyReviser.app $(BIN_DIR)/MyReviser.app; \
+		mv Encre.app $(BIN_DIR)/Encre.app; \
 	fi
 endif
 ifeq ($(CURRENT_OS),windows)
-	@if [ -f MyReviser.exe ]; then \
+	@if [ -f Encre.exe ]; then \
 		mkdir -p $(BIN_DIR); \
-		mv MyReviser.exe $(BIN_DIR)/myreviser$(BIN_EXT); \
+		mv Encre.exe $(BIN_DIR)/encre$(BIN_EXT); \
 	fi
 endif
 	@echo "Go application built successfully!"
-	@echo "Binary: $(BIN_DIR)/myreviser$(BIN_EXT)"
+	@echo "Binary: $(BIN_DIR)/encre$(BIN_EXT)"
 	@echo "Version: $(VERSION) (Build: $(BUILD_NUMBER))"
 
 # Build everything (Rust + Go)
 build: build-rust build-go
 	@echo ""
 	@echo "✓ Build complete!"
-	@echo "  Binary: $(BIN_DIR)/myreviser$(BIN_EXT)"
+	@echo "  Binary: $(BIN_DIR)/encre$(BIN_EXT)"
 	@echo ""
-	@echo "Run with: ./$(BIN_DIR)/myreviser$(BIN_EXT)"
+	@echo "Run with: ./$(BIN_DIR)/encre$(BIN_EXT)"
 
 # ============================================================================
 # Run
 # ============================================================================
 run: build
-	@echo "Running MyReviser..."
-	./$(BIN_DIR)/myreviser$(BIN_EXT)
+	@echo "Running Encre..."
+	./$(BIN_DIR)/encre$(BIN_EXT)
 
 # ============================================================================
 # Testing
@@ -326,10 +329,7 @@ test-go:
 package-all: clean
 	@echo "Building for all platforms with Fyne..."
 	@mkdir -p $(BIN_DIR)
-	@command -v fyne >/dev/null 2>&1 || { \
-		echo "Installing Fyne CLI..."; \
-		go install go install fyne.io/tools/cmd/fyne@latest; \
-	}
+	$(MAKE) ensure-fyne
 
 	@echo ""
 	@echo "=== Building for Linux ==="
@@ -342,13 +342,13 @@ package-all: clean
 			--app-version "$(VERSION)" \
 			--app-build "$(BUILD_NUMBER)"
 	@# Extract binary from package
-	@if [ -f MyReviser.tar.xz ]; then \
-		tar -xf MyReviser.tar.xz; \
+	@if [ -f Encre.tar.xz ]; then \
+		tar -xf Encre.tar.xz; \
 		BINARY=$$(find usr/local/bin -type f -executable | head -n 1); \
 		if [ -n "$$BINARY" ]; then \
 			mkdir -p $(BIN_DIR); \
-			cp "$$BINARY" $(BIN_DIR)/myreviser-linux-amd64; \
-			rm -rf usr MyReviser.tar.xz; \
+			cp "$$BINARY" $(BIN_DIR)/encre-linux-amd64; \
+			rm -rf usr Encre.tar.xz; \
 		fi; \
 	fi
 
@@ -358,10 +358,10 @@ package-all: clean
 	CGO_ENABLED=1 \
 		GOOS=darwin \
 		GOARCH=amd64 \
-		fyne package --icon assets/icon.png --name MyReviser --app-id me.pngwasi.myreviser --release \
+		fyne package --icon assets/icon.png --name Encre --app-id me.pngwasi.encre --release \
 			--app-version "$(VERSION)" \
 			--app-build "$(BUILD_NUMBER)"
-	mv MyReviser.app $(BIN_DIR)/MyReviser-darwin-amd64.app
+	mv Encre.app $(BIN_DIR)/Encre-darwin-amd64.app
 
 	@echo ""
 	@echo "=== Building for macOS (Apple Silicon) ==="
@@ -369,10 +369,10 @@ package-all: clean
 	CGO_ENABLED=1 \
 		GOOS=darwin \
 		GOARCH=arm64 \
-		fyne package --icon assets/icon.png --name MyReviser --app-id me.pngwasi.myreviser --release \
+		fyne package --icon assets/icon.png --name Encre --app-id me.pngwasi.encre --release \
 			--app-version "$(VERSION)" \
 			--app-build "$(BUILD_NUMBER)"
-	mv MyReviser.app $(BIN_DIR)/MyReviser-darwin-arm64.app
+	mv Encre.app $(BIN_DIR)/Encre-darwin-arm64.app
 
 	@echo ""
 	@echo "=== Building for Windows ==="
@@ -385,9 +385,9 @@ package-all: clean
 			--app-version "$(VERSION)" \
 			--app-build "$(BUILD_NUMBER)"
 	@# Move the exe to bin directory
-	@if [ -f MyReviser.exe ]; then \
+	@if [ -f Encre.exe ]; then \
 		mkdir -p $(BIN_DIR); \
-		mv MyReviser.exe $(BIN_DIR)/myreviser-windows-amd64.exe; \
+		mv Encre.exe $(BIN_DIR)/encre-windows-amd64.exe; \
 	fi
 
 	@echo ""
@@ -401,16 +401,16 @@ verify-static:
 	@echo "Verifying static linking..."
 ifeq ($(CURRENT_OS),linux)
 	@echo "Linux binary dependencies:"
-	ldd $(BIN_DIR)/myreviser$(BIN_EXT) || echo "✓ Statically linked (no dynamic dependencies)"
+	ldd $(BIN_DIR)/encre$(BIN_EXT) || echo "✓ Statically linked (no dynamic dependencies)"
 endif
 ifeq ($(CURRENT_OS),darwin)
 	@echo "macOS binary dependencies:"
-	otool -L $(BIN_DIR)/myreviser$(BIN_EXT)
+	otool -L $(BIN_DIR)/encre$(BIN_EXT)
 	@echo "Note: macOS system frameworks are required (cannot be fully static)"
 endif
 ifeq ($(CURRENT_OS),windows)
 	@echo "Windows binary dependencies:"
-	objdump -p $(BIN_DIR)/myreviser$(BIN_EXT) | grep "DLL Name:" || echo "No DLL dependencies found"
+	objdump -p $(BIN_DIR)/encre$(BIN_EXT) | grep "DLL Name:" || echo "No DLL dependencies found"
 endif
 
 # ============================================================================
@@ -421,10 +421,10 @@ lint:
 	cd $(RUST_FFI_DIR) && cargo clippy -- -D warnings
 	@echo "Running Go lints..."
 	@command -v golangci-lint >/dev/null 2>&1 || { \
-		echo "Installing golangci-lint..."; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+		echo "Missing golangci-lint. Install it separately before running make lint."; \
+		exit 1; \
 	}
-	golangci-lint run
+	@golangci-lint run
 
 fmt:
 	@echo "Formatting Rust code..."
@@ -461,20 +461,11 @@ clean-go:
 # ============================================================================
 dev: build-rust
 	@echo "Starting development mode..."
-	@echo "Building Rust FFI library first (if needed)..."
-	@test -f $(LIB_DIR)/libmyreviser_ffi.a || $(MAKE) build-rust
-	@echo "Running Go application with hot reload..."
 	@command -v air >/dev/null 2>&1 || { \
-		echo "Air not found. Installing air for hot reload..."; \
-		go install github.com/air-verse/air@latest; \
+		echo "Missing Air. Install it separately or use make dev-quick."; \
+		exit 1; \
 	}
-	@if command -v air >/dev/null 2>&1; then \
-		echo "Starting air for hot reload..."; \
-		CGO_ENABLED=1 air; \
-	else \
-		echo "Air installation failed. Running normally with: go run ."; \
-		CGO_ENABLED=1 go run .; \
-	fi
+	CGO_ENABLED=1 air
 
 # Quick dev run without hot reload
 dev-quick: build-rust
@@ -491,9 +482,9 @@ update-deps:
 
 # Install locally (after building)
 install: build
-	@echo "Installing MyReviser locally..."
-	install -m 755 $(BIN_DIR)/myreviser$(BIN_EXT) /usr/local/bin/myreviser
-	@echo "Installed to /usr/local/bin/myreviser"
+	@echo "Installing Encre locally..."
+	install -m 755 $(BIN_DIR)/encre$(BIN_EXT) /usr/local/bin/encre
+	@echo "Installed to /usr/local/bin/encre"
 
 # ============================================================================
 # CI/CD Helpers
@@ -520,7 +511,7 @@ ci-package:
 .PHONY: examples
 examples:
 	@echo "════════════════════════════════════════════════════════════════════════════"
-	@echo "MyReviser - Common Usage Examples"
+	@echo "Encre - Common Usage Examples"
 	@echo "════════════════════════════════════════════════════════════════════════════"
 	@echo ""
 	@echo "1️⃣  First Time Setup:"
@@ -536,7 +527,7 @@ examples:
 	@echo "3️⃣  Building for Release:"
 	@echo "   $$ make clean                # Clean previous builds"
 	@echo "   $$ make build                # Build optimized binary"
-	@echo "   $$ ./bin/myreviser           # Run the binary"
+	@echo "   $$ ./bin/encre           # Run the binary"
 	@echo ""
 	@echo "4️⃣  Cross-Platform Build (macOS example):"
 	@echo "   # Build for your Mac (auto-detects Intel or Apple Silicon)"
