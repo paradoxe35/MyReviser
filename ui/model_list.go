@@ -136,6 +136,7 @@ type modelRow struct {
 	meta   *widget.Label
 	action *widget.Button
 	remove *widget.Button
+	info   *widget.Button
 }
 
 func (m *ModelList) template() fyne.CanvasObject {
@@ -144,16 +145,18 @@ func (m *ModelList) template() fyne.CanvasObject {
 		meta:   widget.NewLabel(""),
 		action: widget.NewButton("Get", nil),
 		remove: widget.NewButtonWithIcon("", theme.DeleteIcon(), nil),
+		info:   widget.NewButtonWithIcon("", theme.InfoIcon(), nil),
 	}
 	row.title.TextStyle.Bold = true
 	row.title.Truncation = fyne.TextTruncateEllipsis
 	row.meta.TextStyle.Italic = true
 	row.meta.Truncation = fyne.TextTruncateEllipsis
 	row.remove.Importance = widget.LowImportance
+	row.info.Importance = widget.LowImportance
 
 	content := container.NewVBox(
 		container.NewBorder(nil, nil, nil,
-			container.NewHBox(row.action, row.remove), row.title),
+			container.NewHBox(row.action, row.remove, row.info), row.title),
 		row.meta,
 	)
 
@@ -187,6 +190,7 @@ func (m *ModelList) update(i widget.ListItemID, item fyne.CanvasObject) {
 	m.mu.Unlock()
 
 	row.remove.Hide()
+	row.info.Hide()
 	row.action.Show()
 
 	switch {
@@ -219,29 +223,24 @@ func (m *ModelList) update(i widget.ListItemID, item fyne.CanvasObject) {
 		row.action.Enable()
 	}
 
+	// Language details are only interesting when the summary hides them.
+	if model.Multilingual() {
+		row.info.Show()
+		row.info.OnTapped = func() { showModelDetails(m.window, model, m.host, m.store.Downloaded(model)) }
+	}
+
 	row.action.Refresh()
 }
 
-// summarise keeps a row to one short line. Word error rates and realtime
-// factors are what a benchmark wants; what a person choosing wants is whether
-// it speaks their language, how big it is, and whether it will keep up here.
+// summarise keeps a row to one short line: what it speaks, what it costs,
+// and whether it will keep up here. SpeedLabel shares its thresholds with
+// the details modal, so the two can never disagree.
 func summarise(model stt.Model, host stt.Machine) string {
-	parts := []string{model.LanguageSummary(), fmt.Sprintf("%.0f MB", model.SizeMB())}
-
-	switch model.Fit(host) {
-	case stt.FitTooLarge:
-		parts = append(parts, "too large for this machine")
-	case stt.FitSlow:
-		parts = append(parts, "slow here")
-	default:
-		if model.EstimatedRealtime(host) >= 10 {
-			parts = append(parts, "very fast here")
-		} else {
-			parts = append(parts, "fast here")
-		}
-	}
-
-	return strings.Join(parts, " · ")
+	return strings.Join([]string{
+		model.LanguageSummary(),
+		fmt.Sprintf("%.0f MB", model.SizeMB()),
+		stt.SpeedLabel(model, host),
+	}, " · ")
 }
 
 func (m *ModelList) choose(model stt.Model) {
@@ -308,6 +307,18 @@ func (m *ModelList) confirmDelete(model stt.Model) {
 			}
 			m.list.Refresh()
 		}, m.window)
+}
+
+// showModelDetails opens the facts about a model. Languages are shown by
+// name rather than code, and every claim matches the row summary.
+func showModelDetails(window fyne.Window, model stt.Model, host stt.Machine, downloaded bool) {
+	body := widget.NewLabel(stt.ModelDetails(model, host, downloaded))
+	body.Wrapping = fyne.TextWrapWord
+	body.Selectable = true
+
+	d := dialog.NewCustom(model.Name, "Close", body, window)
+	d.Resize(fyne.NewSize(420, 360))
+	d.Show()
 }
 
 func errorsIsCancelled(err error) bool {
