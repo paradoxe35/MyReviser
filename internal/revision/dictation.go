@@ -69,7 +69,9 @@ func (d *Dictation) start() {
 		d.running = false
 		d.mu.Unlock()
 		d.fail(err)
+		return
 	}
+	logger.Info("Dictation started")
 }
 
 func (d *Dictation) stop() {
@@ -87,6 +89,7 @@ func (d *Dictation) stop() {
 			d.fail(err)
 			return
 		}
+		logger.Info("Dictation finished", "characters", len(text))
 		if strings.TrimSpace(text) == "" {
 			return
 		}

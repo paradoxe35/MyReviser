@@ -252,7 +252,9 @@ impl HotkeyBinding {
 }
 
 fn fire(binding: &HotkeyBinding, down: bool) {
-    tracing::info!(
+    // Auto-repeat redelivers edges while a key is held; the host logs the
+    // settled state.
+    tracing::debug!(
         "Hotkey {} : {} (action: {})",
         if down { "down" } else { "up" },
         binding.binding,

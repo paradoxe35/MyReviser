@@ -127,10 +127,12 @@ fn run(commands: Receiver<Command>, levels: Sender<f32>) {
                 recording = false;
                 let samples = drain(&mut stream, &mut pipeline);
                 let _ = reply.send(samples);
+                stream = None;
             }
             Command::Cancel => {
                 recording = false;
                 drain(&mut stream, &mut pipeline);
+                stream = None;
             }
             Command::Shutdown => return,
         }
