@@ -279,8 +279,10 @@ func (m *ModelList) download(model stt.Model) {
 				dialog.ShowError(err, m.window)
 				return
 			}
-			// First model downloaded becomes the one in use.
-			if err == nil && m.selected == "" {
+			// The downloaded model becomes the one in use when nothing else was
+			// chosen, and a pre-download click is confirmed now that it can
+			// actually run — either way config and header sync together.
+			if err == nil && (m.selected == "" || m.selected == model.ID) {
 				m.choose(model)
 			}
 		})
