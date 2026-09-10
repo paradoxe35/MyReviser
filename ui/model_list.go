@@ -190,7 +190,7 @@ func (m *ModelList) update(i widget.ListItemID, item fyne.CanvasObject) {
 	m.mu.Unlock()
 
 	row.remove.Hide()
-	row.info.Hide()
+	row.info.Show()
 	row.action.Show()
 
 	switch {
