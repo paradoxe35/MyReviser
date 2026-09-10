@@ -33,7 +33,9 @@ pub enum Command {
     /// None means the system default. Takes effect on the next recording, so a
     /// change mid-take cannot truncate what is being said.
     SetDevice(Option<String>),
-    Load(PathBuf, Sender<bool>),
+    /// The reply is Ok(streaming-capable) on a successful load; Err carries
+    /// the load failure.
+    Load(PathBuf, Sender<Result<bool>>),
     Unload,
     Start,
     Stop(Sender<Stopped>),
@@ -67,14 +69,14 @@ impl Recorder {
         let _ = self.commands.send(Command::SetDevice(name));
     }
 
-    /// Loads or replaces the resident model. The reply reports streaming
-    /// support so the host can skip cleanup paths that assume it.
+    /// Loads or replaces the resident model. The reply is Ok(streaming-capable)
+    /// on success; Err carries the load failure.
     pub fn load(&self, path: PathBuf) -> Result<bool> {
         let (tx, rx) = channel();
         self.commands
             .send(Command::Load(path, tx))
             .map_err(|_| anyhow!("recorder thread is gone"))?;
-        rx.recv().map_err(|_| anyhow!("recorder dropped the reply"))
+        rx.recv().map_err(|_| anyhow!("recorder dropped the reply"))?
     }
 
     pub fn unload(&self) {
@@ -112,8 +114,11 @@ fn run(commands: Receiver<Command>, levels: Sender<f32>) {
             Ok(Command::SetDevice(name)) => preferred = name,
             Ok(Command::Load(path, reply)) => {
                 engine.unload();
-                let supports = engine.load(&path).is_ok() && engine.supports_streaming();
-                let _ = reply.send(supports);
+                let _ = reply.send(
+                    engine
+                        .load(&path)
+                        .map(|_| engine.supports_streaming()),
+                );
             }
             Ok(Command::Unload) => engine.unload(),
             Ok(Command::Start) => {
@@ -572,5 +577,25 @@ impl Pipeline {
         self.frame.clear();
 
         std::mem::take(&mut self.speech)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A failed model load must reach the host as an error, not a success:
+    /// masking it let dictation fail later with "no model loaded" despite the
+    /// settings screen showing the model as ready.
+    #[test]
+    fn load_reports_failure() {
+        let (levels, _level_rx) = channel();
+        let recorder = Recorder::spawn(levels);
+
+        let missing = std::env::temp_dir().join("encre-nonexistent-model.gguf");
+        let result = recorder.load(missing);
+
+        recorder.shutdown();
+        assert!(result.is_err(), "loading a missing file must fail");
     }
 }
