@@ -366,9 +366,9 @@ func (p *Processor) InsertText(text string) error {
 	return p.clipboardManager.ReplaceSelectedText(text)
 }
 
-// CleanTranscript improves dictated text with the selected default provider.
-// It deliberately uses the dedicated dictation prompt rather than an editable
-// action prompt, so unrelated instructions cannot change the cleanup task.
+// CleanTranscript tidies dictated text with the provider selected in the AI
+// tab, using the dedicated dictation prompt rather than an editable action
+// prompt, so unrelated instructions cannot change the task.
 func (p *Processor) CleanTranscript(text string) (string, error) {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" {
@@ -376,8 +376,7 @@ func (p *Processor) CleanTranscript(text string) (string, error) {
 	}
 
 	cfg := p.currentConfig()
-	providerName := cfg.GetCurrentProvider()
-	provider, err := p.providerNamed(providerName)
+	provider, err := p.providerNamed(cfg.GetCurrentProvider())
 	if err != nil {
 		return "", fmt.Errorf("transcript cleanup unavailable: %w", err)
 	}

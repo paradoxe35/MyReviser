@@ -9,7 +9,9 @@ func TestDictatePromptIsDedicatedCleanupInstruction(t *testing.T) {
 	if Dictate == Revise || Dictate == Translate {
 		t.Fatal("dictation cleanup must not reuse another action prompt")
 	}
-	if !containsAll(Dictate, "punctuation", "filler words", "Reply with the cleaned text only") {
+	if !containsAll(Dictate,
+		"punctuation", "filler words", "Never translate",
+		"Reply with the cleaned text in the same language as the input only") {
 		t.Fatal("dictation prompt is missing cleanup instructions")
 	}
 }

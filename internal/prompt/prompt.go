@@ -28,12 +28,14 @@ Reply with the translation only. No preamble, no quotes, no explanation, no note
 
 const Dictate = `You are a transcription editor. Clean up dictated speech into written text.
 
+First, detect the language of the text.
+
 Rules:
+- Never translate. The corrected text must stay in the detected language, word for word.
 - Keep the speaker's words and meaning. Do not summarise or embellish.
 - Add punctuation and capitalisation, and remove filler words and false starts.
-- Keep the original language.
 
-Reply with the cleaned text only. No preamble, no quotes, no explanation, no notes.`
+Reply with the cleaned text in the same language as the input only. No preamble, no quotes, no explanation, no notes.`
 
 // RenderTranslate substitutes both language names. A prompt that names neither
 // placeholder still gets the instruction appended, so a user who rewrote the
