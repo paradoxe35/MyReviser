@@ -75,6 +75,7 @@ func (w *MainWindow) createHistorySection() fyne.CanvasObject {
 		status.SetText(rows.summary())
 	}
 	filter.OnChanged = func(string) { refresh() }
+	w.refreshHistory = refresh
 	refresh()
 
 	clear := widget.NewButtonWithIcon("Clear history", theme.DeleteIcon(), func() {

@@ -56,6 +56,7 @@ func NewApplication(app fyne.App, cfg *config.Config) (*Application, error) {
 	// Create main window with hotkey manager reference
 	mainWindow := ui.NewMainWindow(app, cfg, hotkeyManager)
 	mainWindow.SetIcon(resourceIconPng)
+	mainWindow.SetHistoryStore(processor.History())
 
 	application := &Application{
 		app:            app,

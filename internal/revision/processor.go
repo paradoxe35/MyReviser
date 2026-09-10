@@ -217,6 +217,12 @@ func (p *Processor) Run(kind config.ActionKind) error {
 
 // RecordSpeech stores a finished dictation. Raw and final differ when the
 // AI cleanup pass ran; showing both is what makes the history useful.
+func (p *Processor) History() *history.Store {
+	return p.history
+}
+
+// RecordSpeech stores a finished dictation. Raw and final differ when the
+// AI cleanup pass ran; showing both is what makes the history useful.
 func (p *Processor) RecordSpeech(raw, final string) {
 	cfg := p.currentConfig()
 

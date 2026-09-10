@@ -61,6 +61,7 @@ type MainWindow struct {
 	speechModels      *ModelList
 	speechStoreRef    *stt.Store
 	historyStore      *history.Store
+	refreshHistory    func()
 	speechEngine      *widget.Select
 	speechKeepLoaded  *widget.Check
 	speechCleanUp     *widget.Check
@@ -234,6 +235,12 @@ func (w *MainWindow) createContent() fyne.CanvasObject {
 	// Fix for AppTabs layout width issue on Windows
 	// See: https://github.com/fyne-io/fyne/issues/5338
 	tabs.OnSelected = func(tab *container.TabItem) {
+		// History shows other tabs' activity, so it re-reads on every visit.
+		if tab.Text == "History" && w.refreshHistory != nil {
+			fyne.Do(w.refreshHistory)
+		}
+		// Fix for AppTabs layout width issue on Windows
+		// See: https://github.com/fyne-io/fyne/issues/5338
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			fyne.Do(func() {
@@ -289,6 +296,19 @@ func (w *MainWindow) historyStoreRef() *history.Store {
 		w.historyStore = history.NewStore()
 	}
 	return w.historyStore
+}
+
+// SetHistoryStore shares the processor's history store with the UI and makes
+// any new entry refresh an open History tab immediately.
+func (w *MainWindow) SetHistoryStore(store *history.Store) {
+	w.historyStore = store
+	store.OnChange(func() {
+		fyne.Do(func() {
+			if w.refreshHistory != nil {
+				w.refreshHistory()
+			}
+		})
+	})
 }
 
 func (w *MainWindow) ShowWindow() {
