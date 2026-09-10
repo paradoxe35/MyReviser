@@ -32,6 +32,45 @@ func TestEmbeddedCatalogIsComplete(t *testing.T) {
 	}
 }
 
+func TestDiscoverCustomModels(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name string, size int64) {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, make([]byte, size), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	write("my-finetune.gguf", 10)
+	write("whisper-custom.bin", 20)
+	write("notes.txt", 5)
+	if err := os.Mkdir(filepath.Join(dir, "nested.gguf"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	custom := discoverCustomIn(dir)
+	if len(custom) != 2 {
+		t.Fatalf("discovered %d models, want 2: %+v", len(custom), custom)
+	}
+	if custom[0].Name != "my-finetune" || custom[1].Name != "whisper-custom" {
+		t.Errorf("wrong discovery order or names: %+v", custom)
+	}
+	if custom[0].ID != "custom/my-finetune.gguf" || custom[0].SizeBytes != 10 {
+		t.Errorf("custom model fields wrong: %+v", custom[0])
+	}
+}
+
+func TestDiscoverCustomSkipsCatalogEntries(t *testing.T) {
+	dir := t.TempDir()
+	shipped := Models().Models[0]
+	if err := os.WriteFile(filepath.Join(dir, shipped.Filename), []byte("x"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	if got := discoverCustomIn(dir); len(got) != 0 {
+		t.Errorf("a file claimed by the catalog was rediscovered: %+v", got)
+	}
+}
+
 func TestRecommendedSortsFirst(t *testing.T) {
 	models := Catalogue()
 	if !models[0].Recommended {

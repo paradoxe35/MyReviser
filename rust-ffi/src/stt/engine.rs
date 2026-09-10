@@ -1,10 +1,16 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Result, anyhow};
+use transcribe_cpp::{RunOptions, StreamOptions};
 
 /// Holds the loaded model between calls. Loading costs seconds; recording costs
 /// milliseconds. Keeping the session resident is the largest win available to
 /// dictation latency.
+///
+/// The engine supports one streaming dictation at a time: [`Engine::stream_begin`]
+/// claims the model's compute lease, [`Engine::stream_feed`] delivers live audio,
+/// and [`Engine::stream_finalize`] ends input. Models without streaming support
+/// reject `stream_begin` and the host falls back to [`Engine::transcribe`].
 pub struct Engine {
     loaded: Option<Loaded>,
 }
@@ -50,7 +56,7 @@ impl Engine {
             .as_mut()
             .ok_or_else(|| anyhow!("no model loaded"))?;
 
-        let options = transcribe_cpp::RunOptions {
+        let options = RunOptions {
             language: language.map(str::to_owned),
             ..Default::default()
         };
@@ -60,6 +66,33 @@ impl Engine {
             .run(samples, &options)
             .map(|out| out.text.trim().to_owned())
             .map_err(|e| anyhow!("transcription failed: {e}"))
+    }
+
+    /// Reports whether the resident model can stream. Models advertise this in
+    /// their GGUF metadata; it is not a build-time property.
+    pub fn supports_streaming(&self) -> bool {
+        self.loaded
+            .as_ref()
+            .is_some_and(|l| l.session.model().capabilities().supports_streaming)
+    }
+
+    /// Begins a live stream. The returned `Stream` borrows the session, so it
+    /// must be fed and finalized by the same owner without another `run` in
+    /// between — which the recorder thread guarantees.
+    pub fn stream_begin(&mut self, language: Option<&str>) -> Result<transcribe_cpp::Stream<'_>> {
+        let loaded = self
+            .loaded
+            .as_mut()
+            .ok_or_else(|| anyhow!("no model loaded"))?;
+
+        let options = RunOptions {
+            language: language.map(str::to_owned),
+            ..Default::default()
+        };
+        loaded
+            .session
+            .stream(&options, &StreamOptions::default())
+            .map_err(|e| anyhow!("failed to begin stream: {e}"))
     }
 }
 

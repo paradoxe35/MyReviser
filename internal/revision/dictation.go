@@ -84,25 +84,29 @@ func (d *Dictation) stop() {
 	d.mu.Unlock()
 
 	go func() {
-		text, err := d.service.StopRecording()
+		raw, err := d.service.StopRecording()
 		if err != nil {
 			d.fail(err)
 			return
 		}
-		logger.Info("Dictation finished", "characters", len(text))
-		if strings.TrimSpace(text) == "" {
+		logger.Info("Dictation finished", "characters", len(raw))
+		if strings.TrimSpace(raw) == "" {
 			return
 		}
+		text := raw
 		if d.config().Speech.CleanUp {
-			text, err = d.processor.CleanTranscript(text)
-			if err != nil {
+			if cleaned, err := d.processor.CleanTranscript(raw); err == nil {
+				text = cleaned
+			} else {
 				d.fail(err)
 				return
 			}
 		}
 		if err := d.processor.InsertText(text); err != nil {
 			d.fail(err)
+			return
 		}
+		d.processor.RecordSpeech(raw, text)
 	}()
 }
 

@@ -1,6 +1,6 @@
 use std::ffi::c_char;
 use std::os::raw::{c_float, c_int};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::thread;
 
@@ -83,7 +83,7 @@ pub unsafe extern "C" fn encre_stt_load(handle: SttHandle, path: *const c_char) 
         }
     };
 
-    match recogniser.engine.lock().load(Path::new(&path)) {
+    match recogniser.recorder.load(PathBuf::from(&path)) {
         Ok(_) => FFIErrorCode::Success as c_int,
         Err(e) => {
             set_last_error(e.to_string());
@@ -97,7 +97,7 @@ pub unsafe extern "C" fn encre_stt_unload(handle: SttHandle) -> c_int {
     let Some(recogniser) = recogniser(handle) else {
         return FFIErrorCode::NullPointer as c_int;
     };
-    recogniser.engine.lock().unload();
+    recogniser.recorder.unload();
     FFIErrorCode::Success as c_int
 }
 
@@ -135,20 +135,24 @@ pub unsafe extern "C" fn encre_stt_stop(handle: SttHandle) -> *mut c_char {
         *recording = false;
     }
 
-    let samples = match recogniser.recorder.stop() {
-        Ok(samples) => samples,
+    let stopped = match recogniser.recorder.stop() {
+        Ok(stopped) => stopped,
         Err(e) => {
             set_last_error(e.to_string());
             return std::ptr::null_mut();
         }
     };
 
+    if let Some(text) = stopped.text {
+        return string_to_c_str(text);
+    }
+
     // Silence is not a failure: the user pressed and released without speaking.
-    if samples.is_empty() {
+    if stopped.samples.is_empty() {
         return string_to_c_str(String::new());
     }
 
-    match recogniser.engine.lock().transcribe(&samples, None) {
+    match recogniser.engine.lock().transcribe(&stopped.samples, None) {
         Ok(text) => string_to_c_str(text),
         Err(e) => {
             set_last_error(e.to_string());

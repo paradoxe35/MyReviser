@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/paradoxe35/encre/internal/config"
+	"github.com/paradoxe35/encre/internal/history"
 	"github.com/paradoxe35/encre/internal/input"
 	"github.com/paradoxe35/encre/internal/logger"
 	"github.com/paradoxe35/encre/internal/permissions"
@@ -59,6 +60,7 @@ type MainWindow struct {
 
 	speechModels      *ModelList
 	speechStoreRef    *stt.Store
+	historyStore      *history.Store
 	speechEngine      *widget.Select
 	speechKeepLoaded  *widget.Check
 	speechCleanUp     *widget.Check
@@ -225,6 +227,7 @@ func (w *MainWindow) createContent() fyne.CanvasObject {
 		container.NewTabItemWithIcon("Hotkeys", keyboardIcon, w.createHotkeysSection()),
 		container.NewTabItemWithIcon("Actions", theme.DocumentIcon(), w.createActionsSection()),
 		container.NewTabItemWithIcon("Speech", theme.MediaRecordIcon(), w.createSpeechSection()),
+		container.NewTabItemWithIcon("History", theme.HistoryIcon(), w.createHistorySection()),
 		container.NewTabItemWithIcon("System", theme.SettingsIcon(), w.createSystemSection()),
 	)
 
@@ -279,6 +282,13 @@ func (w *MainWindow) markClean() {
 		w.unsavedLabel.Hide()
 		w.unsavedLabel.Refresh()
 	}
+}
+
+func (w *MainWindow) historyStoreRef() *history.Store {
+	if w.historyStore == nil {
+		w.historyStore = history.NewStore()
+	}
+	return w.historyStore
 }
 
 func (w *MainWindow) ShowWindow() {

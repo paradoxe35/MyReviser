@@ -9,7 +9,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,7 +53,8 @@ var (
 
 func cachePath() string { return utils.AppHomeDir("catalog.json") }
 
-// Models prefers a cached download over the shipped copy.
+// Models prefers a cached download over the shipped copy, plus any model
+// files the user dropped into the models directory themselves.
 func Models() *Catalog {
 	catalogMu.RLock()
 	current := active
@@ -66,6 +69,47 @@ func Models() *Catalog {
 		active = loadBest()
 	}
 	return active
+}
+
+// discoverCustom finds model files in the models directory that no catalog
+// entry claims, so users can run fine-tuned or community models.
+func discoverCustom() []Model {
+	return discoverCustomIn(utils.AppHomeDir("models"))
+}
+
+func discoverCustomIn(dir string) []Model {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+
+	claimed := make(map[string]bool, len(Models().Models))
+	for _, model := range Models().Models {
+		claimed[model.Filename] = true
+	}
+
+	var custom []Model
+	for _, entry := range entries {
+		if entry.IsDir() || claimed[entry.Name()] {
+			continue
+		}
+		if !strings.HasSuffix(entry.Name(), ".gguf") && !strings.HasSuffix(entry.Name(), ".bin") {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		custom = append(custom, Model{
+			ID:        "custom/" + entry.Name(),
+			Slug:      entry.Name(),
+			Name:      strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name())),
+			Filename:  entry.Name(),
+			SizeBytes: info.Size(),
+		})
+	}
+	sort.Slice(custom, func(i, j int) bool { return custom[i].Name < custom[j].Name })
+	return custom
 }
 
 func loadBest() *Catalog {
@@ -179,10 +223,10 @@ func RefreshInBackground() {
 	}()
 }
 
-func Catalogue() []Model { return Models().Models }
+func Catalogue() []Model { return append(Models().Models, discoverCustom()...) }
 
 func FindModel(id string) (Model, bool) {
-	for _, model := range Models().Models {
+	for _, model := range Catalogue() {
 		if model.ID == id {
 			return model, true
 		}

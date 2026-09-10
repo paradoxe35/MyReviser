@@ -11,10 +11,12 @@ import (
 
 	"github.com/paradoxe35/encre/internal/ai"
 	"github.com/paradoxe35/encre/internal/config"
+	"github.com/paradoxe35/encre/internal/history"
 	"github.com/paradoxe35/encre/internal/input"
 	"github.com/paradoxe35/encre/internal/language"
 	"github.com/paradoxe35/encre/internal/logger"
 	"github.com/paradoxe35/encre/internal/prompt"
+	"github.com/paradoxe35/encre/internal/stt"
 )
 
 // Processor runs the text actions: capture a selection, send it to a provider,
@@ -24,6 +26,7 @@ type Processor struct {
 	config           *config.Config
 	providerFactory  *ai.ProviderFactory
 	clipboardManager *input.FFIClipboardManager
+	history          *history.Store
 	processing       bool
 }
 
@@ -37,6 +40,7 @@ func NewProcessor(cfg *config.Config) (*Processor, error) {
 		config:           cfg,
 		providerFactory:  ai.NewProviderFactory(),
 		clipboardManager: clipManager,
+		history:          history.NewStore(),
 	}
 
 	if err := p.initializeProviders(); err != nil {
@@ -206,8 +210,49 @@ func (p *Processor) Run(kind config.ActionKind) error {
 		return fmt.Errorf("failed to replace text: %w", err)
 	}
 
+	p.recordHistory(kind, text, result, "")
 	logger.Info("Action completed", "action", kind)
 	return nil
+}
+
+// RecordSpeech stores a finished dictation. Raw and final differ when the
+// AI cleanup pass ran; showing both is what makes the history useful.
+func (p *Processor) RecordSpeech(raw, final string) {
+	cfg := p.currentConfig()
+
+	model := ""
+	if m, ok := stt.FindModel(cfg.Speech.ModelID); ok {
+		model = m.Name
+	}
+
+	p.history.Add(history.Entry{
+		Kind:       history.KindSpeech,
+		Original:   raw,
+		Result:     final,
+		Model:      model,
+		Provider:   cfg.GetCurrentProvider(),
+		Characters: utf8.RuneCountInString(final),
+	})
+}
+
+// recordHistory stores a finished action. It never blocks the caller: history
+// is a convenience, not a dependency.
+func (p *Processor) recordHistory(kind config.ActionKind, original, result, model string) {
+	cfg := p.currentConfig()
+
+	entry := history.Entry{
+		Kind:       history.Kind(kind.Operation()),
+		Original:   original,
+		Result:     result,
+		Provider:   cfg.GetCurrentProvider(),
+		Model:      model,
+		Characters: utf8.RuneCountInString(result),
+	}
+	if kind.Operation() == config.OpTranslate {
+		entry.FromLang = language.Find(cfg.Translate.PrimaryLanguage).Name
+		entry.ToLang = language.Find(cfg.Translate.SecondaryLanguage).Name
+	}
+	p.history.Add(entry)
 }
 
 func (p *Processor) transform(text string, kind config.ActionKind) (string, error) {

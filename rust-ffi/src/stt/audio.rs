@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, TryRecvError, channel};
 use std::thread;
 use std::time::Duration;
@@ -6,6 +7,8 @@ use std::time::Duration;
 use anyhow::{Result, anyhow};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Device, SampleFormat, StreamConfig};
+
+use super::engine::Engine;
 
 pub const SAMPLE_RATE: u32 = 16_000;
 
@@ -30,10 +33,20 @@ pub enum Command {
     /// None means the system default. Takes effect on the next recording, so a
     /// change mid-take cannot truncate what is being said.
     SetDevice(Option<String>),
+    Load(PathBuf, Sender<bool>),
+    Unload,
     Start,
-    Stop(Sender<Vec<f32>>),
+    Stop(Sender<Stopped>),
     Cancel,
     Shutdown,
+}
+
+/// What a recording produced. When the model streamed, `text` carries the
+/// final transcript; otherwise `samples` holds the speech for the host to
+/// batch-transcribe.
+pub struct Stopped {
+    pub samples: Vec<f32>,
+    pub text: Option<String>,
 }
 
 /// Owns the capture stream on its own thread. cpal delivers audio on a realtime
@@ -54,6 +67,20 @@ impl Recorder {
         let _ = self.commands.send(Command::SetDevice(name));
     }
 
+    /// Loads or replaces the resident model. The reply reports streaming
+    /// support so the host can skip cleanup paths that assume it.
+    pub fn load(&self, path: PathBuf) -> Result<bool> {
+        let (tx, rx) = channel();
+        self.commands
+            .send(Command::Load(path, tx))
+            .map_err(|_| anyhow!("recorder thread is gone"))?;
+        rx.recv().map_err(|_| anyhow!("recorder dropped the reply"))
+    }
+
+    pub fn unload(&self) {
+        let _ = self.commands.send(Command::Unload);
+    }
+
     pub fn start(&self) {
         let _ = self.commands.send(Command::Start);
     }
@@ -66,8 +93,8 @@ impl Recorder {
         let _ = self.commands.send(Command::Shutdown);
     }
 
-    /// Stops capture and returns the speech that was gathered, at 16 kHz mono.
-    pub fn stop(&self) -> Result<Vec<f32>> {
+    /// Stops capture and returns what the recording produced.
+    pub fn stop(&self) -> Result<Stopped> {
         let (tx, rx) = channel();
         self.commands
             .send(Command::Stop(tx))
@@ -77,65 +104,140 @@ impl Recorder {
 }
 
 fn run(commands: Receiver<Command>, levels: Sender<f32>) {
-    let mut stream: Option<StreamGuard> = None;
-    let mut recording = false;
-    let mut pipeline = Pipeline::new();
+    let mut engine = Engine::new();
     let mut preferred: Option<String> = None;
 
     loop {
-        // While recording, wake often enough to keep converting as audio
-        // arrives. Blocking until the next command would defer every resample
-        // and VAD frame to Stop, putting that work on the critical path.
-        let command = if recording {
-            match commands.recv_timeout(DRAIN_INTERVAL) {
-                Ok(command) => Some(command),
-                Err(RecvTimeoutError::Timeout) => None,
-                Err(RecvTimeoutError::Disconnected) => return,
+        match commands.recv() {
+            Ok(Command::SetDevice(name)) => preferred = name,
+            Ok(Command::Load(path, reply)) => {
+                engine.unload();
+                let supports = engine.load(&path).is_ok() && engine.supports_streaming();
+                let _ = reply.send(supports);
             }
-        } else {
-            match commands.recv() {
-                Ok(command) => Some(command),
-                Err(_) => return,
-            }
-        };
-
-        if recording {
-            if let Some(guard) = stream.as_ref() {
-                pipeline.feed(&guard.take());
-            }
-        }
-
-        let Some(command) = command else { continue };
-
-        match command {
-            Command::SetDevice(name) => {
-                if preferred != name {
-                    preferred = name;
-                    // Drop the open stream so the next warm or start reopens on
-                    // the newly chosen device.
-                    stream = None;
+            Ok(Command::Unload) => engine.unload(),
+            Ok(Command::Start) => {
+                if !record(&commands, levels.clone(), &mut engine, preferred.clone()) {
+                    return;
                 }
             }
-            Command::Start => {
-                if stream.is_none() {
-                    stream = StreamGuard::open(levels.clone(), preferred.as_deref()).ok();
-                }
-                pipeline.reset(stream.as_ref().map(|s| s.rate).unwrap_or(SAMPLE_RATE));
-                recording = true;
-            }
-            Command::Stop(reply) => {
-                recording = false;
-                let samples = drain(&mut stream, &mut pipeline);
-                let _ = reply.send(samples);
-                stream = None;
-            }
-            Command::Cancel => {
-                recording = false;
-                drain(&mut stream, &mut pipeline);
-                stream = None;
-            }
-            Command::Shutdown => return,
+            Ok(Command::Shutdown) | Err(_) => return,
+            _ => {}
         }
+    }
+}
+
+/// Runs one recording session on this thread and returns when it ends. The
+/// engine stream, if the model supports one, lives entirely inside this
+/// function so it borrows the session for exactly the recording's lifetime.
+/// Returns `false` only on shutdown.
+fn record(
+    commands: &Receiver<Command>,
+    levels: Sender<f32>,
+    engine: &mut Engine,
+    preferred: Option<String>,
+) -> bool {
+    let mut stream = StreamGuard::open(levels, preferred.as_deref()).ok();
+    let mut pipeline = Pipeline::new();
+    pipeline.reset(stream.as_ref().map(|s| s.rate).unwrap_or(SAMPLE_RATE));
+    let mut batched: Vec<f32> = Vec::new();
+    let mut live: Option<LiveStream<'_>> = engine
+        .stream_begin(None)
+        .map(|stream| LiveStream { stream })
+        .inspect_err(|e| tracing::debug!("streaming unavailable: {e}"))
+        .ok();
+    let recording = true;
+
+    while recording {
+        // Wake often enough to keep converting as audio arrives. Blocking until
+        // the next command would defer every resample and VAD frame to Stop,
+        // putting that work on the critical path.
+        match commands.recv_timeout(DRAIN_INTERVAL) {
+            Err(RecvTimeoutError::Disconnected) => return false,
+            Err(RecvTimeoutError::Timeout) => {}
+            Ok(command) => match command {
+                Command::Stop(reply) => {
+                    let text = live.as_mut().and_then(|active| {
+                        let tail = drain(&mut stream, &mut pipeline);
+                        let _ = active.feed(&tail);
+                        active.finalize()
+                    });
+                    let samples = if text.is_some() {
+                        Vec::new()
+                    } else {
+                        let tail = drain(&mut stream, &mut pipeline);
+                        batched.extend_from_slice(&tail);
+                        std::mem::take(&mut batched)
+                    };
+                    let _ = reply.send(Stopped { samples, text });
+                    return true;
+                }
+                Command::Cancel => {
+                    if let Some(mut active) = live.take() {
+                        let tail = drain(&mut stream, &mut pipeline);
+                        let _ = active.feed(&tail);
+                        active.abort();
+                    } else {
+                        drain(&mut stream, &mut pipeline);
+                    }
+                    return true;
+                }
+                Command::Shutdown => return false,
+                _ => {}
+            },
+        }
+
+        if let Some(guard) = stream.as_ref() {
+            pipeline.feed(&guard.take());
+            // A live stream consumes the filtered speech as it arrives;
+            // without one the pipeline accumulates for a batch run.
+            let speech = pipeline.take();
+            match live.as_mut() {
+                Some(active) => {
+                    if let Err(e) = active.feed(&speech) {
+                        tracing::warn!("stream feed failed, falling back to batch: {e}");
+                        live = None;
+                        batched.extend_from_slice(&speech);
+                    }
+                }
+                None => batched.extend_from_slice(&speech),
+            }
+        }
+    }
+
+    true
+}
+
+/// A live recognition session. The `Stream` borrows the engine's session, so
+/// this wrapper must live and die on the recorder thread.
+struct LiveStream<'a> {
+    stream: transcribe_cpp::Stream<'a>,
+}
+
+impl<'a> LiveStream<'a> {
+
+    fn feed(&mut self, samples: &[f32]) -> Result<()> {
+        if samples.is_empty() {
+            return Ok(());
+        }
+        self.stream
+            .feed(samples)
+            .map(|_| ())
+            .map_err(|e| anyhow!("stream feed: {e}"))
+    }
+
+    /// Ends input and returns the final transcript.
+    fn finalize(&mut self) -> Option<String> {
+        self.stream
+            .finalize()
+            .ok()
+            .map(|_| self.stream.text().display().trim().to_owned())
+            .filter(|text| !text.is_empty())
+    }
+
+    /// Abandons the stream without producing text.
+    fn abort(&mut self) {
+        self.stream.reset();
     }
 }
 
@@ -441,6 +543,11 @@ impl Pipeline {
             self.prefill.pop_front();
         }
         self.prefill.push_back(frame);
+    }
+
+    /// Speech gathered so far, leaving the pipeline free to continue.
+    fn take(&mut self) -> Vec<f32> {
+        std::mem::take(&mut self.speech)
     }
 
     /// Flushes the resampler's delay line and returns the recording.
