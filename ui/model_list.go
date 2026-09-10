@@ -224,9 +224,8 @@ func (m *ModelList) update(i widget.ListItemID, item fyne.CanvasObject) {
 	}
 
 	// Language details are only interesting when the summary hides them.
-	if model.Multilingual() {
-		row.info.Show()
-		row.info.OnTapped = func() { showModelDetails(m.window, model, m.host, m.store.Downloaded(model)) }
+	row.info.OnTapped = func() {
+		showModelDetails(m.window, model, m.host, m.store.Downloaded(model))
 	}
 
 	row.action.Refresh()
