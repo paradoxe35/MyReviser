@@ -224,10 +224,8 @@ func (p *Processor) History() *history.Store {
 // RecordSpeech stores a finished dictation. Raw and final differ when the
 // AI cleanup pass ran; showing both is what makes the history useful.
 func (p *Processor) RecordSpeech(raw, final string) {
-	cfg := p.currentConfig()
-
 	model := ""
-	if m, ok := stt.FindModel(cfg.Speech.ModelID); ok {
+	if m, ok := stt.FindModel(p.currentConfig().Speech.ModelID); ok {
 		model = m.Name
 	}
 
@@ -236,7 +234,6 @@ func (p *Processor) RecordSpeech(raw, final string) {
 		Original:   raw,
 		Result:     final,
 		Model:      model,
-		Provider:   cfg.GetCurrentProvider(),
 		Characters: utf8.RuneCountInString(final),
 	})
 }

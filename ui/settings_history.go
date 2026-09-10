@@ -163,7 +163,7 @@ func (h *historyRows) summary() string {
 
 func historyTitle(entry history.Entry) string {
 	label := strings.Title(string(entry.Kind))
-	return fmt.Sprintf("%s · %s · %d chars", label, entry.At.Format("2 Jan 15:04"), entry.Characters)
+	return fmt.Sprintf("%s · %s", label, entry.At.Format("2 Jan 15:04"))
 }
 
 // historyDetail keeps the row to one line: the result, which is what the user
@@ -197,7 +197,9 @@ func showHistoryDetail(window fyne.Window, entry history.Entry) {
 	body.Wrapping = fyne.TextWrapWord
 	body.Selectable = true
 
-	dialog.NewCustom("History entry", "Close", body, window).Show()
+	dialog := dialog.NewCustom("History entry", "Close", body, window)
+	dialog.Resize(fyne.NewSize(460, 380))
+	dialog.Show()
 }
 
 func nonEmpty(values ...string) []string {
