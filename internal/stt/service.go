@@ -98,6 +98,11 @@ func (s *Service) load(speech *input.FFISpeech, cfg config.SpeechConfig) error {
 		return nil
 	}
 	if err := speech.Load(path); err != nil {
+		// The Rust load unloads any resident model before attempting, so a
+		// failure leaves the engine empty. Forgetting the stale marker here
+		// is what makes the next dictation retry instead of replaying the
+		// same failure forever.
+		s.loaded = ""
 		return err
 	}
 

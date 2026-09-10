@@ -1,6 +1,6 @@
 use std::ffi::c_char;
 use std::os::raw::{c_float, c_int};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::mpsc::channel;
 use std::thread;
 
@@ -10,13 +10,11 @@ use crate::ffi::ffi_types::{
     FFIErrorCode, SttHandle, c_str_to_string, set_last_error, string_to_c_str,
 };
 use crate::stt::audio::{self, Recorder};
-use crate::stt::engine::Engine;
 
 /// Reports microphone level while recording, so the host can draw a meter.
 pub type LevelCallback = extern "C" fn(c_float);
 
 pub struct SpeechRecogniser {
-    engine: Mutex<Engine>,
     recorder: Recorder,
     recording: Mutex<bool>,
 }
@@ -34,7 +32,6 @@ impl SpeechRecogniser {
         });
 
         Self {
-            engine: Mutex::new(Engine::new()),
             recorder: Recorder::spawn(tx),
             recording: Mutex::new(false),
         }
@@ -143,19 +140,13 @@ pub unsafe extern "C" fn encre_stt_stop(handle: SttHandle) -> *mut c_char {
         }
     };
 
-    if let Some(text) = stopped.text {
-        return string_to_c_str(text);
-    }
-
-    // Silence is not a failure: the user pressed and released without speaking.
-    if stopped.samples.is_empty() {
-        return string_to_c_str(String::new());
-    }
-
-    match recogniser.engine.lock().transcribe(&stopped.samples, None) {
-        Ok(text) => string_to_c_str(text),
-        Err(e) => {
-            set_last_error(e.to_string());
+    match stopped.text {
+        Ok(Some(text)) => string_to_c_str(text),
+        // Silence is not a failure: the user pressed and released without
+        // speaking.
+        Ok(None) => string_to_c_str(String::new()),
+        Err(message) => {
+            set_last_error(message);
             std::ptr::null_mut()
         }
     }
@@ -195,15 +186,7 @@ pub unsafe extern "C" fn encre_stt_transcribe_file(
         }
     };
 
-    let samples = match crate::stt::engine::read_wav(Path::new(&path)) {
-        Ok(samples) => samples,
-        Err(e) => {
-            set_last_error(e.to_string());
-            return std::ptr::null_mut();
-        }
-    };
-
-    match recogniser.engine.lock().transcribe(&samples, None) {
+    match recogniser.recorder.transcribe_file(PathBuf::from(&path)) {
         Ok(text) => string_to_c_str(text),
         Err(e) => {
             set_last_error(e.to_string());
