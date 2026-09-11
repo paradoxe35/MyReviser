@@ -89,12 +89,10 @@ var (
 
 const APP_ID = "me.pngwasi.encre"
 
-// ConfigPath returns the path to the configuration file
 func ConfigPath() string {
 	return utils.AppHomeDir("config.json")
 }
 
-// Default returns the default configuration
 func Default() *Config {
 	return &Config{
 		AIProvider: AIProviderConfig{
@@ -159,7 +157,6 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	// Parse config
 	cfg := &Config{}
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
@@ -211,7 +208,6 @@ func (c *Config) Save() error {
 	return nil
 }
 
-// Get returns the current configuration
 func Get() *Config {
 	configMutex.RLock()
 	defer configMutex.RUnlock()
@@ -248,7 +244,6 @@ func notifyListeners(cfg *Config) {
 	}
 }
 
-// GetProviderSettings returns settings for a specific provider
 func (c *Config) GetProviderSettings(provider string) ProviderSettings {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -259,7 +254,6 @@ func (c *Config) GetProviderSettings(provider string) ProviderSettings {
 
 	settings, ok := c.AIProvider.Providers[provider]
 	if !ok {
-		// Return defaults for this provider
 		defaults := Default()
 		if defaultSettings, ok := defaults.AIProvider.Providers[provider]; ok {
 			return defaultSettings
@@ -274,7 +268,6 @@ func (c *Config) GetProviderSettings(provider string) ProviderSettings {
 	return settings
 }
 
-// SetProviderSettings updates settings for a specific provider
 func (c *Config) SetProviderSettings(provider string, settings ProviderSettings) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -290,14 +283,12 @@ func (c *Config) SetProviderSettings(provider string, settings ProviderSettings)
 	c.AIProvider.Providers[provider] = settings
 }
 
-// GetCurrentProvider returns the currently selected provider name
 func (c *Config) GetCurrentProvider() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.AIProvider.Provider
 }
 
-// SetCurrentProvider sets the currently selected provider
 func (c *Config) SetCurrentProvider(provider string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -338,10 +329,9 @@ func (c *Config) GetAllProviderNames() []string {
 	return names
 }
 
-// GetConfiguredProviderNames returns providers that have enough configuration
-// to be used by an AI-backed operation. Built-ins require a model and API key;
-// custom providers may omit the key when NoAPIKey is enabled, but still need a
-// model and endpoint.
+// GetConfiguredProviderNames returns providers usable by an AI-backed operation: built-ins need a
+// model and API key, custom providers may skip the key when NoAPIKey is set but still need a model
+// and endpoint.
 func (c *Config) GetConfiguredProviderNames() []string {
 	c.mu.RLock()
 	providers := make(map[string]ProviderSettings, len(c.AIProvider.Providers))

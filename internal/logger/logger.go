@@ -22,19 +22,15 @@ func Init() error {
 		return fmt.Errorf("failed to create log directory: %w", err)
 	}
 
-	// Use daily log file format: encre-2025-09-29.log
 	today := time.Now().Format("2006-01-02")
 	logFile := filepath.Join(logDir, fmt.Sprintf("encre-%s.log", today))
 	currentLogFile = logFile
 
-	// Open log file with append mode
 	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open log file: %w", err)
 	}
 
-	// Create text handler with options
-	// Check for DEBUG environment variable
 	logLevel := slog.LevelInfo
 	if os.Getenv("DEBUG") != "" {
 		logLevel = slog.LevelDebug
@@ -46,20 +42,15 @@ func Init() error {
 
 	handler := slog.NewTextHandler(file, opts)
 	defaultLogger = slog.New(handler)
-
-	// Set as default
 	slog.SetDefault(defaultLogger)
 
-	// Log initialization
 	defaultLogger.Info("Logger initialized", "log_file", logFile)
 
-	// Clean up old log files (keep last 30 days)
 	go cleanupOldLogs(logDir, 30)
 
 	return nil
 }
 
-// Convenience functions for logging
 func Info(msg string, args ...any) {
 	if defaultLogger != nil {
 		defaultLogger.Info(msg, args...)
@@ -84,23 +75,19 @@ func Warn(msg string, args ...any) {
 	}
 }
 
-// GetCurrentLogFile returns the path to the current log file
 func GetCurrentLogFile() string {
 	if currentLogFile != "" {
 		return currentLogFile
 	}
 
-	// Fallback: construct path with today's date
 	today := time.Now().Format("2006-01-02")
 	return utils.AppHomeDir("logs", fmt.Sprintf("encre-%s.log", today))
 }
 
-// GetLogDirectory returns the path to the logs directory
 func GetLogDirectory() string {
 	return utils.AppHomeDir("logs")
 }
 
-// cleanupOldLogs removes log files older than the specified number of days
 func cleanupOldLogs(logDir string, maxAgeDays int) {
 	entries, err := os.ReadDir(logDir)
 	if err != nil {
@@ -114,7 +101,6 @@ func cleanupOldLogs(logDir string, maxAgeDays int) {
 			continue
 		}
 
-		// Check if it's a log file matching our pattern
 		if filepath.Ext(entry.Name()) != ".log" {
 			continue
 		}
@@ -125,7 +111,6 @@ func cleanupOldLogs(logDir string, maxAgeDays int) {
 			continue
 		}
 
-		// Remove if older than cutoff date
 		if info.ModTime().Before(cutoffDate) {
 			if err := os.Remove(logPath); err == nil {
 				Info("Removed old log file", "file", entry.Name())

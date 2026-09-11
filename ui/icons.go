@@ -10,8 +10,7 @@ import (
 //go:embed assets/keyboard.svg
 var keyboardSVG []byte
 
-// Fyne ships no keyboard icon, and every stand-in read as something else.
-// ThemedResource recolours the fills to match light or dark.
+// Fyne ships no keyboard icon; ThemedResource recolors it to match light/dark theme.
 var keyboardIcon = theme.NewThemedResource(
 	&fyne.StaticResource{StaticName: "keyboard.svg", StaticContent: keyboardSVG},
 )

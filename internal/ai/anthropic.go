@@ -19,7 +19,6 @@ type AnthropicProvider struct {
 	client      *http.Client
 }
 
-// NewAnthropicProvider creates a new Anthropic/Claude provider
 func NewAnthropicProvider(apiKey, baseURL, model string, temperature float64) *AnthropicProvider {
 	if baseURL == "" {
 		baseURL = "https://api.anthropic.com"
@@ -39,7 +38,6 @@ func NewAnthropicProvider(apiKey, baseURL, model string, temperature float64) *A
 	}
 }
 
-// AnthropicRequest represents the request structure for Claude API
 type AnthropicRequest struct {
 	Model       string             `json:"model"`
 	Messages    []AnthropicMessage `json:"messages"`
@@ -48,13 +46,11 @@ type AnthropicRequest struct {
 	Temperature float64            `json:"temperature"`
 }
 
-// AnthropicMessage represents a message in the Claude API
 type AnthropicMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// AnthropicResponse represents the response from Claude API
 type AnthropicResponse struct {
 	Content []struct {
 		Text string `json:"text"`
@@ -66,7 +62,6 @@ type AnthropicResponse struct {
 	} `json:"error,omitempty"`
 }
 
-// ReviseText sends text to Claude for revision
 func (p *AnthropicProvider) ReviseText(ctx context.Context, text, systemPrompt string) (string, error) {
 	if err := p.ValidateConfig(); err != nil {
 		return "", err
@@ -109,7 +104,6 @@ func (p *AnthropicProvider) ReviseText(ctx context.Context, text, systemPrompt s
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Handle non-2xx status codes
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", ParseAPIError(resp.StatusCode, body, "claude")
 	}
@@ -127,7 +121,6 @@ func (p *AnthropicProvider) ReviseText(ctx context.Context, text, systemPrompt s
 		return "", fmt.Errorf("no response from API")
 	}
 
-	// Concatenate all text content
 	var result strings.Builder
 	for _, content := range response.Content {
 		if content.Type == "text" {
@@ -138,7 +131,6 @@ func (p *AnthropicProvider) ReviseText(ctx context.Context, text, systemPrompt s
 	return result.String(), nil
 }
 
-// ValidateConfig validates the provider configuration
 func (p *AnthropicProvider) ValidateConfig() error {
 	if p.APIKey == "" {
 		return fmt.Errorf("anthropic API key is required")
@@ -149,17 +141,14 @@ func (p *AnthropicProvider) ValidateConfig() error {
 	return nil
 }
 
-// GetName returns the provider name
 func (p *AnthropicProvider) GetName() string {
 	return "claude"
 }
 
-// GetModel returns the model being used
 func (p *AnthropicProvider) GetModel() string {
 	return p.Model
 }
 
-// GetTemperature returns the temperature being used
 func (p *AnthropicProvider) GetTemperature() float64 {
 	return p.Temperature
 }

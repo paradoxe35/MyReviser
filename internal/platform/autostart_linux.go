@@ -13,10 +13,8 @@ import (
 
 type autoStart struct{}
 
-// escapeExecPath escapes a path for use in desktop entry Exec field
-// According to XDG spec: quote reserved characters and escape ", $, `, \
+// escapeExecPath quotes and escapes a path for the desktop entry Exec field, per the XDG spec.
 func escapeExecPath(path string) string {
-	// Check if path contains reserved characters that require quoting
 	reservedChars := " \t\n\"'\\><~|&;$*?#()`"
 	needsQuoting := false
 	for _, char := range reservedChars {
@@ -30,14 +28,12 @@ func escapeExecPath(path string) string {
 		return path
 	}
 
-	// Escape special characters: ", $, `, \
 	escaped := path
 	escaped = strings.ReplaceAll(escaped, `\`, `\\`)  // Backslash first!
 	escaped = strings.ReplaceAll(escaped, `"`, `\"`)  // Double quote
 	escaped = strings.ReplaceAll(escaped, "`", "\\`") // Backtick
 	escaped = strings.ReplaceAll(escaped, `$`, `\$`)  // Dollar sign
 
-	// Wrap in double quotes
 	return fmt.Sprintf(`"%s"`, escaped)
 }
 
@@ -53,12 +49,10 @@ func (a *autoStart) Enable() error {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 
-	// Resolve symlinks to get the real executable path
-	// This is important for AppImages and symlinked installations
+	// Resolving matters for AppImages and other symlinked installs.
 	executable, err = filepath.EvalSymlinks(executable)
 	if err != nil {
 		logger.Warn("Failed to resolve symlinks", "error", err)
-		// Continue with original path if symlink resolution fails
 	}
 
 	autostartDir := filepath.Join(homeDir, ".config", "autostart")
@@ -68,7 +62,6 @@ func (a *autoStart) Enable() error {
 
 	desktopFilePath := filepath.Join(autostartDir, "encre.desktop")
 
-	// Escape the executable path according to XDG desktop entry spec
 	escapedExec := escapeExecPath(executable)
 
 	desktopContent := fmt.Sprintf(`[Desktop Entry]

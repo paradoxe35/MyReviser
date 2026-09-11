@@ -14,8 +14,7 @@ import (
 	"github.com/paradoxe35/encre/internal/stt"
 )
 
-// ModelList shows the catalog with per-row download state. Rows are recycled by
-// widget.List, so every field is rebuilt in update rather than captured.
+// ModelList shows the catalog with per-row download state; rows are recycled, so update rebuilds fields rather than capturing them.
 type ModelList struct {
 	widget.BaseWidget
 
@@ -61,8 +60,7 @@ func (m *ModelList) build() {
 		[]string{"All", "Downloaded", "Recommended", "Multilingual", "English"}, nil)
 	m.filter.SetSelected("All")
 
-	// Handlers are attached after the initial selection so neither fires before
-	// the list they refresh exists.
+	// Attached after the initial selection so neither fires before the list they refresh exists.
 	m.search.OnChanged = func(string) { m.apply() }
 	m.filter.OnChanged = func(string) { m.apply() }
 
@@ -160,8 +158,7 @@ func (m *ModelList) template() fyne.CanvasObject {
 		row.meta,
 	)
 
-	// Rows are recycled, so the widgets are found by the object List hands back
-	// rather than by walking the container tree.
+	// Rows are recycled: look up widgets by the object List hands back rather than walking the container tree.
 	m.mu.Lock()
 	m.rows[content] = row
 	m.mu.Unlock()
@@ -231,9 +228,7 @@ func (m *ModelList) update(i widget.ListItemID, item fyne.CanvasObject) {
 	row.action.Refresh()
 }
 
-// summarise keeps a row to one short line: what it speaks, what it costs,
-// and whether it will keep up here. SpeedLabel shares its thresholds with
-// the details modal, so the two can never disagree.
+// summarise keeps a row to one short line. SpeedLabel's thresholds are shared with the details modal so they can't disagree.
 func summarise(model stt.Model, host stt.Machine) string {
 	return strings.Join([]string{
 		model.LanguageSummary(),
@@ -277,9 +272,7 @@ func (m *ModelList) download(model stt.Model) {
 				dialog.ShowError(err, m.window)
 				return
 			}
-			// The downloaded model becomes the one in use when nothing else was
-			// chosen, and a pre-download click is confirmed now that it can
-			// actually run — either way config and header sync together.
+			// Becomes the active model if nothing else was chosen, or confirms a pre-download click now that it can run.
 			if err == nil && (m.selected == "" || m.selected == model.ID) {
 				m.choose(model)
 			}
@@ -308,14 +301,17 @@ func (m *ModelList) confirmDelete(model stt.Model) {
 		}, m.window)
 }
 
-// showModelDetails opens the facts about a model. Languages are shown by
-// name rather than code, and every claim matches the row summary.
+// showModelDetails opens the facts about a model, with languages shown by name rather than code.
 func showModelDetails(window fyne.Window, model stt.Model, host stt.Machine, downloaded bool) {
 	body := widget.NewLabel(stt.ModelDetails(model, host, downloaded))
 	body.Wrapping = fyne.TextWrapWord
 	body.Selectable = true
 
-	d := dialog.NewCustom(model.Name, "Close", body, window)
+	// A multilingual model can list dozens of languages, taller than the dialog, so it scrolls.
+	content := container.NewVScroll(body)
+	content.SetMinSize(fyne.NewSize(400, 320))
+
+	d := dialog.NewCustom(model.Name, "Close", content, window)
 	d.Resize(fyne.NewSize(420, 360))
 	d.Show()
 }

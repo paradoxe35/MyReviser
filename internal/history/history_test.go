@@ -75,3 +75,29 @@ func TestClearRemovesEverything(t *testing.T) {
 		t.Error("clear should remove the file")
 	}
 }
+
+func TestOnChangeCanReadTheStore(t *testing.T) {
+	store := &Store{path: filepath.Join(t.TempDir(), "history.jsonl")}
+
+	seen := make(chan int, 1)
+	store.OnChange(func() {
+		seen <- len(store.Recent(""))
+	})
+
+	done := make(chan struct{})
+	go func() {
+		store.Add(Entry{Kind: KindRevise, Original: "a", Result: "b"})
+		close(done)
+	}()
+
+	select {
+	case count := <-seen:
+		if count != 1 {
+			t.Errorf("handler saw %d entries, want 1", count)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnChange deadlocked reading the store it was notified about")
+	}
+
+	<-done
+}

@@ -32,7 +32,6 @@ import (
 	"github.com/paradoxe35/encre/internal/logger"
 )
 
-// FFIHotkeyManager wraps the Rust FFI hotkey manager
 type FFIHotkeyManager struct {
 	mu          sync.RWMutex
 	ffiMu       sync.Mutex // Separate mutex for FFI calls
@@ -47,7 +46,6 @@ type FFIHotkeyManager struct {
 var globalFFIHotkeyManager *FFIHotkeyManager
 var globalFFIMu sync.Mutex
 
-// NewFFIHotkeyManager creates a new FFI-based hotkey manager
 func NewFFIHotkeyManager() *FFIHotkeyManager {
 	handle := C.encre_hotkey_manager_new()
 	if handle == nil {
@@ -138,10 +136,8 @@ func (h *FFIHotkeyManager) RegisterHotkey(binding, action string, handler func()
 	return nil
 }
 
-// ListenError reports why the listener is not running, or "" when it is.
-//
-// Start only spawns the thread; the system refuses the key tap afterwards, on that thread, so a
-// successful start says nothing about whether shortcuts will ever fire.
+// ListenError reports why the listener is not running, or "" when it is. Start only spawns the
+// thread; the system refuses the key tap afterwards, so a successful start proves nothing.
 func (h *FFIHotkeyManager) ListenError() string {
 	if h.handle == nil {
 		return ""
@@ -159,7 +155,6 @@ func (h *FFIHotkeyManager) ListenError() string {
 	return C.GoString(cStr)
 }
 
-// Start starts listening for hotkeys
 func (h *FFIHotkeyManager) Start() error {
 	h.mu.Lock()
 	if h.active {
@@ -190,7 +185,6 @@ func (h *FFIHotkeyManager) Start() error {
 	return nil
 }
 
-// Stop stops listening for hotkeys
 func (h *FFIHotkeyManager) Stop() {
 	h.mu.Lock()
 	if !h.active {
@@ -220,14 +214,12 @@ func (h *FFIHotkeyManager) Stop() {
 	logger.Info("FFI: Hotkey manager stopped")
 }
 
-// IsActive returns whether the hotkey manager is active
 func (h *FFIHotkeyManager) IsActive() bool {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.active
 }
 
-// Close frees the hotkey manager resources
 func (h *FFIHotkeyManager) Close() {
 	h.Stop()
 
@@ -268,8 +260,7 @@ func (h *FFIHotkeyManager) Enable() {
 	logger.Info("FFI: Hotkeys enabled (Go-level gate)")
 }
 
-// hotkeyCallbackGateway is called from Rust when a hotkey is triggered
-// This function must be exported for C
+// hotkeyCallbackGateway is called from Rust when a hotkey fires.
 //
 //export hotkeyCallbackGateway
 func hotkeyCallbackGateway(action *C.char) {

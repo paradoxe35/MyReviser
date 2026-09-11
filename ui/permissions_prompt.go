@@ -50,7 +50,6 @@ func newPermissionPrompt() *permissionPrompt {
 	})
 	restartButton.Importance = widget.HighImportance
 
-	// Create restart row with centered button (not full width)
 	restartRow := container.NewPadded(
 		container.NewCenter(restartButton),
 	)
@@ -134,7 +133,6 @@ func buildPermissionRow(title, description string, button *widget.Button) fyne.C
 
 	textColumn := container.NewVBox(titleLabel, descriptionLabel)
 
-	// Use HBox with layout that allows text to expand
 	row := container.NewBorder(nil, nil, nil, button, textColumn)
 	return container.NewPadded(row)
 }

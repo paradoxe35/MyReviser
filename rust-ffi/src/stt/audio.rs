@@ -39,6 +39,7 @@ pub enum Command {
     Unload,
     /// Transcribes a WAV on this thread, so verification shares the engine.
     TranscribeFile(PathBuf, Sender<Result<String>>),
+    TranscribeSamples(Vec<f32>, Sender<Result<String>>),
     Start,
     Stop(Sender<Stopped>),
     Cancel,
@@ -84,6 +85,16 @@ impl Recorder {
 
     pub fn unload(&self) {
         let _ = self.commands.send(Command::Unload);
+    }
+
+    /// Transcribes samples the recorder handed back, used when a streaming
+    /// take degraded and the audio has to go through in one pass.
+    pub fn transcribe_samples(&self, samples: Vec<f32>) -> Result<String> {
+        let (tx, rx) = channel();
+        self.commands
+            .send(Command::TranscribeSamples(samples, tx))
+            .map_err(|_| anyhow!("recorder thread is gone"))?;
+        rx.recv().map_err(|_| anyhow!("recorder dropped the reply"))?
     }
 
     /// Transcribes a WAV with the resident model, for settings verification.
@@ -133,6 +144,9 @@ fn run(commands: Receiver<Command>, levels: Sender<f32>) {
                 );
             }
             Ok(Command::Unload) => engine.unload(),
+            Ok(Command::TranscribeSamples(samples, reply)) => {
+                let _ = reply.send(engine.transcribe(&samples, None));
+            }
             Ok(Command::TranscribeFile(path, reply)) => {
                 let _ = reply.send(
                     crate::stt::engine::read_wav(&path)
@@ -150,19 +164,17 @@ fn run(commands: Receiver<Command>, levels: Sender<f32>) {
     }
 }
 
-/// Runs one recording session on this thread and returns when it ends. The
-/// engine stream, if the model supports one, lives entirely inside this
+/// Runs one recording session and returns when it ends, `false` only on shutdown.
+/// The engine stream, if the model supports one, lives entirely inside this
 /// function so it borrows the session for exactly the recording's lifetime.
-/// Returns `false` only on shutdown.
 fn record(
     commands: &Receiver<Command>,
     levels: Sender<f32>,
     engine: &mut Engine,
     preferred: Option<String>,
 ) -> bool {
-    // Try streaming first; on any failure fall back to a plain batch session.
-    // The result is dropped explicitly so the borrow ends before the engine
-    // is handed to either session function.
+    // Try streaming first, falling back to batch on failure. Dropped explicitly
+    // so the borrow ends before the engine is handed to either session function.
     let started = engine.stream_begin(None);
     if let Ok(stream) = started {
         return record_streaming(commands, levels, preferred, stream);
@@ -183,7 +195,10 @@ fn record_streaming(
     let mut stream = StreamGuard::open(levels, preferred.as_deref()).ok();
     let mut pipeline = Pipeline::new();
     pipeline.reset(stream.as_ref().map(|s| s.rate).unwrap_or(SAMPLE_RATE));
-    let mut batched: Vec<f32> = Vec::new();
+    // Kept as well as streamed: a feed failure would otherwise silently drop
+    // words, and losing dictated audio is worth the extra memory to avoid.
+    let mut spoken: Vec<f32> = Vec::new();
+    let mut degraded = false;
     let mut live = LiveStream { stream: live };
 
     loop {
@@ -193,11 +208,27 @@ fn record_streaming(
             Ok(command) => match command {
                 Command::Stop(reply) => {
                     let tail = drain(&mut stream, &mut pipeline);
-                    let _ = live.feed(&tail);
+                    spoken.extend_from_slice(&tail);
+                    degraded |= live.feed(&tail).is_err();
+
+                    // A partial transcript is worse than none: the host can't tell
+                    // what's missing, so hand back the audio for a batch retry.
+                    if degraded {
+                        live.abort();
+                        let _ = reply.send(Stopped {
+                            samples: spoken,
+                            text: Ok(None),
+                        });
+                        return true;
+                    }
+
                     let text = live
                         .finalize()
                         .map_err(|e| format!("stream finalize failed: {e}"));
-                    let _ = reply.send(Stopped { samples: Vec::new(), text });
+                    let _ = reply.send(Stopped {
+                        samples: Vec::new(),
+                        text,
+                    });
                     return true;
                 }
                 Command::Cancel => {
@@ -214,9 +245,13 @@ fn record_streaming(
         if let Some(guard) = stream.as_ref() {
             pipeline.feed(&guard.take());
             let speech = pipeline.take();
+            spoken.extend_from_slice(&speech);
+
             if let Err(e) = live.feed(&speech) {
-                tracing::warn!("stream feed failed: {e}");
-                batched.extend_from_slice(&speech);
+                if !degraded {
+                    tracing::warn!("stream feed failed, falling back to batch: {e}");
+                }
+                degraded = true;
             }
         }
     }
@@ -333,8 +368,8 @@ impl StreamGuard {
         let (tx, rx) = channel();
 
         let stream = build_stream(&device, &config, tx, levels)?;
-        // cpal 0.18 no longer starts a stream on creation. Without this the
-        // callback never fires and every recording comes back silent.
+        // cpal 0.18 doesn't auto-start streams; without this the callback never
+        // fires and recordings come back silent.
         stream.play()?;
 
         Ok(Self {
@@ -371,8 +406,8 @@ struct SelectedConfig {
     format: SampleFormat,
 }
 
-/// Falls back to the default when the chosen device is gone: a microphone that
-/// was unplugged should not stop dictation from working at all.
+/// Falls back to the default device when the chosen one is gone, so an
+/// unplugged microphone doesn't stop dictation from working.
 fn open_device(preferred: Option<&str>) -> Result<Device> {
     let host = host();
 
@@ -410,8 +445,8 @@ pub fn devices() -> (Vec<String>, Option<String>) {
 }
 
 fn host() -> cpal::Host {
-    // ALSA rather than cpal's default on Linux: PulseAudio and PipeWire both
-    // expose an ALSA interface, and going direct avoids a resampling hop.
+    // ALSA over cpal's default on Linux: PulseAudio/PipeWire both expose an
+    // ALSA interface, and going direct avoids a resampling hop.
     #[cfg(target_os = "linux")]
     {
         cpal::host_from_id(cpal::HostId::Alsa).unwrap_or_else(|_| cpal::default_host())
@@ -422,9 +457,9 @@ fn host() -> cpal::Host {
     }
 }
 
-/// Takes the device's own rate rather than demanding 16 kHz. Forcing a rate the
-/// hardware does not want is how Bluetooth headsets end up in headset profile,
-/// or ALSA refuses the stream outright.
+/// Uses the device's own rate instead of forcing 16 kHz: forcing a rate the
+/// hardware doesn't want can drop Bluetooth headsets into headset profile or
+/// make ALSA refuse the stream outright.
 fn preferred_config(device: &Device) -> Result<SelectedConfig> {
     let default = device.default_input_config()?;
     let rate = default.sample_rate();
@@ -528,7 +563,7 @@ impl Pipeline {
 
     fn reset(&mut self, input_rate: u32) {
         // A resampler carries FFT overlap between calls; reusing one across
-        // recordings leaks the tail of the previous take into the next.
+        // takes would leak the tail of the previous recording into the next.
         self.resampler = (input_rate != SAMPLE_RATE)
             .then(|| {
                 rubato::FftFixedIn::<f32>::new(
@@ -594,8 +629,8 @@ impl Pipeline {
         }
 
         if self.onset >= ONSET_FRAMES {
-            // Onset confirmed: replay the buffered attack, then stay open for
-            // the hangover so the tail of the utterance is not cut.
+            // Onset confirmed: replay the buffered attack, then hold open for
+            // the hangover window so the tail isn't cut.
             self.speech.extend(self.prefill.drain(..).flatten());
             self.hangover = HANGOVER_FRAMES;
         }
@@ -646,9 +681,7 @@ impl Pipeline {
 mod tests {
     use super::*;
 
-    /// A failed model load must reach the host as an error, not a success:
-    /// masking it let dictation fail later with "no model loaded" despite the
-    /// settings screen showing the model as ready.
+    /// A failed load must reach the host as an error, not be masked as success.
     #[test]
     fn load_reports_failure() {
         let (levels, _level_rx) = channel();
@@ -659,5 +692,39 @@ mod tests {
 
         recorder.shutdown();
         assert!(result.is_err(), "loading a missing file must fail");
+    }
+}
+
+#[cfg(test)]
+mod degraded_tests {
+    use super::*;
+
+    /// A degraded streaming take hands back audio, not a transcript missing words.
+    #[test]
+    fn degraded_stream_returns_samples_for_batch() {
+        let stopped = Stopped {
+            samples: vec![0.1, 0.2, 0.3],
+            text: Ok(None),
+        };
+
+        assert!(
+            !stopped.samples.is_empty(),
+            "the host needs the audio to transcribe"
+        );
+        assert!(
+            matches!(stopped.text, Ok(None)),
+            "a partial transcript must not be offered as if complete"
+        );
+    }
+
+    /// Silence and a degraded stream both carry no text; only the samples tell
+    /// them apart, which is what the FFI branches on.
+    #[test]
+    fn silence_carries_no_samples() {
+        let stopped = Stopped {
+            samples: Vec::new(),
+            text: Ok(None),
+        };
+        assert!(stopped.samples.is_empty());
     }
 }

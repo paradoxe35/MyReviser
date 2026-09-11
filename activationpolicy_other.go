@@ -2,12 +2,10 @@
 
 package main
 
-// showInDock is a no-op on non-macOS platforms
+// showInDock is a no-op outside macOS; there's no Dock to show it in.
 func showInDock() {
-	// No-op on Linux/Windows
 }
 
-// hideFromDock is a no-op on non-macOS platforms
+// hideFromDock is a no-op outside macOS; there's no Dock to hide it from.
 func hideFromDock() {
-	// No-op on Linux/Windows
 }

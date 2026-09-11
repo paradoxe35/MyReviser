@@ -13,8 +13,7 @@ import (
 
 const providerDefaultOption = "Default"
 
-// operationEditor holds what an operation does. Which keys trigger it lives
-// under Hotkeys.
+// operationEditor holds what an operation does; which keys trigger it lives under Hotkeys.
 type operationEditor struct {
 	prompt   *widget.Entry
 	limit    *widget.Entry
@@ -61,8 +60,7 @@ func (w *MainWindow) newOperationEditor(op config.Operation) *operationEditor {
 		timeout:  widget.NewSlider(5, 300),
 		provider: w.dirtySelect(w.providerOptions(), nil),
 	}
-	// The built-in prompt shows greyed out rather than hiding behind an empty
-	// field: it is what actually runs, and people edit from it.
+	// Shown as placeholder, not hidden behind an empty field, since it's what actually runs.
 	editor.prompt.SetPlaceHolder(config.DefaultPrompt(op))
 	editor.prompt.SetText(operation.SystemPrompt)
 	editor.prompt.Wrapping = fyne.TextWrapWord
@@ -95,8 +93,7 @@ func (e *operationEditor) content(w *MainWindow, op config.Operation) fyne.Canva
 		),
 	}
 
-	// The language pair is a translate setting, so it belongs with the action
-	// rather than in a screen of its own.
+	// Language pair lives here rather than its own screen, since it's a translate-specific setting.
 	if op == config.OpTranslate {
 		rows = append(rows, widget.NewSeparator(), w.translateLanguages())
 	}
@@ -166,16 +163,14 @@ func validateCharacterLimit(value string) error {
 	if err != nil {
 		return errors.New("must be a number")
 	}
-	// main only checked that it parsed. An upper bound catches a typo; a high
-	// floor would make an existing smaller limit unsavable.
+	// Upper bound catches typos; too high a floor would make an existing smaller limit unsavable.
 	if limit < 1 || limit > 100000 {
 		return errors.New("must be between 1 and 100000")
 	}
 	return nil
 }
 
-// boundBy names the shortcuts an operation answers to, so it is obvious that
-// "Revise selection" and "Revise everything" share these settings.
+// boundBy names the shortcuts an operation answers to, e.g. "Revise selection" and "Revise everything" share these settings.
 func boundBy(op config.Operation) fyne.CanvasObject {
 	var names []string
 	for _, kind := range config.ActionOrder {

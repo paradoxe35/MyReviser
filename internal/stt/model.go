@@ -22,6 +22,7 @@ type Model struct {
 	Streaming      bool     `json:"streaming"`
 	LanguageDetect bool     `json:"language_detect"`
 
+	// WordErrorRate is a percentage, as published: 7.53 means 7.53%.
 	WordErrorRate  float64 `json:"word_error_rate"`
 	RealtimeFactor float64 `json:"realtime_factor"`
 	SpeedScore     float64 `json:"speed_score"`

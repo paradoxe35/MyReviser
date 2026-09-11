@@ -172,9 +172,8 @@ func Sorted() []Language {
 	return out
 }
 
-// Defaults seeds a primary/secondary pair from the OS locale. The secondary is
-// whichever of English or French the primary is not, so the pair is never
-// degenerate.
+// Defaults seeds a primary/secondary pair from the OS locale. The secondary is whichever of
+// English or French the primary is not, so the pair is never degenerate.
 func Defaults(localeTag string) (primary, secondary string) {
 	primary = "en"
 	if IsKnown(localeTag) {

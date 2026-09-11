@@ -6,8 +6,7 @@ import (
 	"strings"
 )
 
-// LanguageName resolves a catalog language code to its English name, falling
-// back to the code itself when unknown.
+// LanguageName resolves a catalog language code to its English name, falling back to the code itself when unknown.
 func LanguageName(code string) string {
 	if name, ok := languageNames[strings.ToLower(code)]; ok {
 		return name
@@ -15,8 +14,7 @@ func LanguageName(code string) string {
 	return code
 }
 
-// languageNames covers the codes the model catalog uses. Not exhaustive: an
-// unknown code displays as-is rather than hiding the model's capability.
+// languageNames covers the codes the model catalog uses; not exhaustive, unknown codes display as-is.
 var languageNames = map[string]string{
 	"en": "English", "fr": "French", "es": "Spanish", "de": "German",
 	"it": "Italian", "pt": "Portuguese", "nl": "Dutch", "pl": "Polish",
@@ -26,8 +24,10 @@ var languageNames = map[string]string{
 	"ur": "Urdu", "hi": "Hindi", "bn": "Bengali", "ta": "Tamil",
 	"te": "Telugu", "mr": "Marathi", "gu": "Gujarati", "pa": "Punjabi",
 	"th": "Thai", "vi": "Vietnamese", "id": "Indonesian", "ms": "Malay",
-	"tl": "Filipino", "zh": "Chinese", "ja": "Japanese", "ko": "Korean",
-	"sv": "Swedish", "da": "Danish", "nb": "Norwegian", "fi": "Finnish",
+	"tl": "Filipino", "fil": "Filipino", "zh": "Chinese", "yue": "Cantonese",
+	"ja": "Japanese", "ko": "Korean",
+	"sv": "Swedish", "da": "Danish", "no": "Norwegian", "nb": "Norwegian",
+	"nn": "Norwegian Nynorsk", "fi": "Finnish",
 	"is": "Icelandic", "ca": "Catalan", "eu": "Basque", "gl": "Galician",
 	"cy": "Welsh", "ga": "Irish", "af": "Afrikaans", "sw": "Swahili",
 	"am": "Amharic", "ha": "Hausa", "yo": "Yoruba", "ig": "Igbo",
@@ -38,16 +38,24 @@ var languageNames = map[string]string{
 	"sr": "Serbian", "hr": "Croatian", "sl": "Slovenian", "mk": "Macedonian",
 	"bs": "Bosnian", "et": "Estonian", "lv": "Latvian", "lt": "Lithuanian",
 	"ml": "Malayalam", "kn": "Kannada", "or": "Odia", "so": "Somali",
-	"om": "Oromo", "jv": "Javanese", "su": "Sundanese", "eo": "Esperanto",
+	"om": "Oromo", "jv": "Javanese", "jw": "Javanese", "su": "Sundanese",
+	"eo": "Esperanto",
+	"as": "Assamese", "ba": "Bashkir", "be": "Belarusian", "bo": "Tibetan",
+	"br": "Breton", "fo": "Faroese", "haw": "Hawaiian", "ht": "Haitian Creole",
+	"la": "Latin", "lb": "Luxembourgish", "mi": "Maori", "mt": "Maltese",
+	"oc": "Occitan", "ps": "Pashto", "sa": "Sanskrit", "sd": "Sindhi",
+	"sn": "Shona", "tg": "Tajik", "tk": "Turkmen", "tt": "Tatar",
+	"yi": "Yiddish",
 }
 
 // SpeedLabel describes how a model is expected to keep up on this machine.
-// The thresholds match the row summaries: comfortable runs are "fast", ten
-// times real-time or better is "very fast".
+// Thresholds match the row summaries: comfortable is "fast", 10x realtime or better is "very fast".
 func SpeedLabel(model Model, host Machine) string {
 	switch model.Fit(host) {
 	case FitTooLarge:
 		return "too large for this machine"
+	case FitUnknown:
+		return "speed unknown"
 	case FitSlow:
 		return "slow here"
 	default:
@@ -58,9 +66,8 @@ func SpeedLabel(model Model, host Machine) string {
 	}
 }
 
-// ModelDetails renders the human-facing facts about a model: what it speaks,
-// what it costs to run, and how it is expected to behave on this machine.
-// Deliberately omits the catalog description and raw benchmark numbers.
+// ModelDetails renders the human-facing facts about a model: languages, cost to run, and
+// expected behavior on this machine. Omits the catalog description and raw benchmark numbers.
 func ModelDetails(model Model, host Machine, downloaded bool) string {
 	var lines []string
 
@@ -83,7 +90,7 @@ func ModelDetails(model Model, host Machine, downloaded bool) string {
 		lines = append(lines, "License: "+model.License)
 	}
 	if model.WordErrorRate > 0 {
-		lines = append(lines, fmt.Sprintf("Word error rate: %.1f%%", model.WordErrorRate*100))
+		lines = append(lines, fmt.Sprintf("Word error rate: %.1f%%", model.WordErrorRate))
 	}
 
 	state := "Not downloaded"
@@ -99,8 +106,9 @@ func ModelDetails(model Model, host Machine, downloaded bool) string {
 }
 
 func streamingLine(model Model) string {
+	// Transcript lands the moment you stop speaking; not live captions mid-sentence.
 	if model.Streaming {
-		return "Streaming: supported — text appears while you speak"
+		return "Streaming: supported — transcribes as you speak, so text lands the moment you stop"
 	}
-	return "Streaming: not supported — text appears when you stop"
+	return "Streaming: not supported — transcription starts when you stop speaking"
 }

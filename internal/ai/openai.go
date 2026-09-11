@@ -24,7 +24,6 @@ type OpenAIProvider struct {
 
 func (p *OpenAIProvider) SetLowReasoning(low bool) { p.LowReasoning = low }
 
-// NewOpenAIProvider creates a new OpenAI provider
 func NewOpenAIProvider(apiKey, baseURL, model string, temperature float64) *OpenAIProvider {
 	if baseURL == "" {
 		baseURL = "https://api.openai.com/v1"
@@ -44,7 +43,6 @@ func NewOpenAIProvider(apiKey, baseURL, model string, temperature float64) *Open
 	}
 }
 
-// OpenAIRequest represents the request structure for OpenAI API
 type OpenAIRequest struct {
 	Model           string               `json:"model"`
 	Messages        []OpenAIMessage      `json:"messages"`
@@ -60,13 +58,11 @@ type OpenRouterReasoning struct {
 	Exclude bool `json:"exclude"`
 }
 
-// OpenAIMessage represents a message in the OpenAI API
 type OpenAIMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// OpenAIResponse represents the response from OpenAI API
 type OpenAIResponse struct {
 	Choices []struct {
 		Message OpenAIMessage `json:"message"`
@@ -78,7 +74,6 @@ type OpenAIResponse struct {
 	} `json:"error,omitempty"`
 }
 
-// ReviseText sends text to OpenAI for revision
 func (p *OpenAIProvider) ReviseText(ctx context.Context, text, systemPrompt string) (string, error) {
 	if err := p.ValidateConfig(); err != nil {
 		return "", err
@@ -133,7 +128,6 @@ func (p *OpenAIProvider) send(ctx context.Context, requestBody OpenAIRequest) (s
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Handle non-2xx status codes
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", ParseAPIError(resp.StatusCode, body, "openai")
 	}
@@ -154,7 +148,6 @@ func (p *OpenAIProvider) send(ctx context.Context, requestBody OpenAIRequest) (s
 	return response.Choices[0].Message.Content, nil
 }
 
-// ValidateConfig validates the provider configuration
 func (p *OpenAIProvider) ValidateConfig() error {
 	if p.BaseURL == "" {
 		return fmt.Errorf("OpenAI base URL is required")
@@ -162,17 +155,14 @@ func (p *OpenAIProvider) ValidateConfig() error {
 	return nil
 }
 
-// GetName returns the provider name
 func (p *OpenAIProvider) GetName() string {
 	return "openai"
 }
 
-// GetModel returns the model being used
 func (p *OpenAIProvider) GetModel() string {
 	return p.Model
 }
 
-// GetTemperature returns the temperature being used
 func (p *OpenAIProvider) GetTemperature() float64 {
 	return p.Temperature
 }

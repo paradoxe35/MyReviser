@@ -75,6 +75,8 @@ RUST_FFI_DIR := rust-ffi
 LIB_DIR := lib
 BIN_DIR := bin
 
+RUST_BUILD := bash scripts/build-rust-ffi.sh
+
 # ============================================================================
 # Default target
 # ============================================================================
@@ -178,9 +180,8 @@ endif
 build-rust:
 	@echo "Building Rust FFI static library for $(CURRENT_OS)..."
 	@mkdir -p $(LIB_DIR)
-	cd $(RUST_FFI_DIR) && \
-		RUSTFLAGS="-C target-feature=+crt-static" \
-		cargo build --release --target $(RUST_TARGET)
+	RUSTFLAGS="-C target-feature=+crt-static" \
+		$(RUST_BUILD) $(RUST_TARGET)
 	@echo "Copying static library to $(LIB_DIR)..."
 	cp $(RUST_FFI_DIR)/target/$(RUST_TARGET)/release/libencre_ffi.$(LIB_EXT) $(LIB_DIR)/
 	@echo "Copying C header bindings..."
@@ -191,10 +192,9 @@ build-rust:
 build-rust-linux:
 	@echo "Building Rust FFI static library for Linux (musl)..."
 	@mkdir -p $(LIB_DIR)
-	cd $(RUST_FFI_DIR) && \
-		rustup target add x86_64-unknown-linux-musl && \
-		RUSTFLAGS="-C target-feature=+crt-static" \
-		cargo build --release --target x86_64-unknown-linux-musl
+	rustup target add x86_64-unknown-linux-musl
+	RUSTFLAGS="-C target-feature=+crt-static" \
+		$(RUST_BUILD) x86_64-unknown-linux-musl
 	cp $(RUST_FFI_DIR)/target/x86_64-unknown-linux-musl/release/libencre_ffi.a $(LIB_DIR)/
 	@echo "Linux Rust FFI library built!"
 
@@ -202,9 +202,8 @@ build-rust-linux:
 build-rust-darwin:
 	@echo "Building Rust FFI static library for macOS ($(CURRENT_ARCH))..."
 	@mkdir -p $(LIB_DIR)
-	cd $(RUST_FFI_DIR) && \
-		rustup target add $(RUST_TARGET) && \
-		cargo build --release --target $(RUST_TARGET)
+	rustup target add $(RUST_TARGET)
+	$(RUST_BUILD) $(RUST_TARGET)
 	cp $(RUST_FFI_DIR)/target/$(RUST_TARGET)/release/libencre_ffi.a $(LIB_DIR)/
 	@echo "macOS Rust FFI library built for $(CURRENT_ARCH)!"
 
@@ -212,9 +211,8 @@ build-rust-darwin:
 build-rust-darwin-amd64:
 	@echo "Building Rust FFI static library for macOS Intel (x86_64)..."
 	@mkdir -p $(LIB_DIR)
-	cd $(RUST_FFI_DIR) && \
-		rustup target add x86_64-apple-darwin && \
-		cargo build --release --target x86_64-apple-darwin
+	rustup target add x86_64-apple-darwin
+	$(RUST_BUILD) x86_64-apple-darwin
 	cp $(RUST_FFI_DIR)/target/x86_64-apple-darwin/release/libencre_ffi.a $(LIB_DIR)/
 	@echo "macOS Intel Rust FFI library built!"
 
@@ -222,9 +220,8 @@ build-rust-darwin-amd64:
 build-rust-darwin-arm64:
 	@echo "Building Rust FFI static library for macOS Apple Silicon (ARM64)..."
 	@mkdir -p $(LIB_DIR)
-	cd $(RUST_FFI_DIR) && \
-		rustup target add aarch64-apple-darwin && \
-		cargo build --release --target aarch64-apple-darwin
+	rustup target add aarch64-apple-darwin
+	$(RUST_BUILD) aarch64-apple-darwin
 	cp $(RUST_FFI_DIR)/target/aarch64-apple-darwin/release/libencre_ffi.a $(LIB_DIR)/
 	@echo "macOS Apple Silicon Rust FFI library built!"
 
@@ -232,10 +229,9 @@ build-rust-darwin-arm64:
 build-rust-windows:
 	@echo "Building Rust FFI static library for Windows (MinGW)..."
 	@mkdir -p $(LIB_DIR)
-	cd $(RUST_FFI_DIR) && \
-		rustup target add x86_64-pc-windows-gnu && \
-		RUSTFLAGS="-C target-feature=+crt-static" \
-		cargo build --release --target x86_64-pc-windows-gnu
+	rustup target add x86_64-pc-windows-gnu
+	RUSTFLAGS="-C target-feature=+crt-static" \
+		$(RUST_BUILD) x86_64-pc-windows-gnu
 	cp $(RUST_FFI_DIR)/target/x86_64-pc-windows-gnu/release/libencre_ffi.a $(LIB_DIR)/
 	@echo "Windows Rust FFI library built!"
 

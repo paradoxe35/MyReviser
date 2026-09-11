@@ -77,8 +77,8 @@ impl Engine {
     }
 
     /// Begins a live stream. The returned `Stream` borrows the session, so it
-    /// must be fed and finalized by the same owner without another `run` in
-    /// between — which the recorder thread guarantees.
+    /// must be fed and finalized by the same owner with no other `run` call
+    /// in between; the recorder thread guarantees that.
     pub fn stream_begin(&mut self, language: Option<&str>) -> Result<transcribe_cpp::Stream<'_>> {
         let loaded = self
             .loaded

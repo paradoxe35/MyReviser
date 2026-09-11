@@ -58,8 +58,7 @@ func TestHoldReportsBothEdges(t *testing.T) {
 	}
 }
 
-// X11 repeats a held key as release/press pairs. A release cancelled by a
-// press inside the grace window must not reach the handler.
+// X11 repeats a held key as release/press pairs; a release cancelled inside the grace window must not reach the handler.
 func TestHoldIgnoresAutoRepeat(t *testing.T) {
 	log := bind(t, "dictate")
 
@@ -97,8 +96,7 @@ func TestHoldIgnoresRepeatedDown(t *testing.T) {
 	}
 }
 
-// A release with no matching press would otherwise stop a recording that never
-// started.
+// A release with no matching press would otherwise stop a recording that never started.
 func TestHoldIgnoresUpWithoutDown(t *testing.T) {
 	log := bind(t, "dictate")
 

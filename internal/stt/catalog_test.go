@@ -111,7 +111,6 @@ func TestFindModelMatchesByID(t *testing.T) {
 	}
 }
 
-// A cache older than the shipped list means the app was updated since.
 func TestOlderCacheLosesToShipped(t *testing.T) {
 	shipped, err := parseCatalog(embeddedCatalog)
 	if err != nil {
@@ -150,5 +149,41 @@ func TestLanguageSummary(t *testing.T) {
 		if got != c.want {
 			t.Errorf("LanguageSummary(%v) = %q, want %q", c.languages, got, c.want)
 		}
+	}
+}
+
+// Every language code must have an English name; a missing one falls back to the raw code.
+func TestCatalogLanguagesAllNamed(t *testing.T) {
+	shipped, err := parseCatalog(embeddedCatalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, model := range shipped.Models {
+		for _, code := range model.Languages {
+			if seen[code] {
+				continue
+			}
+			seen[code] = true
+			if LanguageName(code) == code {
+				t.Errorf("language %q has no English name", code)
+			}
+		}
+	}
+}
+
+// The parsed catalog slice has spare capacity; appending in place would scribble into memory the catalog still owns.
+func TestCatalogueDoesNotAliasTheCatalog(t *testing.T) {
+	published := Models().Models
+	if cap(published) == len(published) {
+		t.Skip("catalog slice has no spare capacity to scribble into")
+	}
+
+	combined := Catalogue()
+	if len(combined) < len(published) {
+		t.Fatalf("Catalogue() dropped entries: %d < %d", len(combined), len(published))
+	}
+	if &combined[0] == &published[0] {
+		t.Error("Catalogue() shares its backing array with the published catalog")
 	}
 }

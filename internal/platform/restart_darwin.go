@@ -18,19 +18,14 @@ func RestartApplication() error {
 
 	logger.Info("Restarting application", "executable", executable)
 
-	// On macOS, use 'open' command to properly launch the app bundle
-	// This handles both .app bundles and direct executables
 	var cmd *exec.Cmd
 
-	// Check if we're inside a .app bundle
 	if strings.Contains(executable, ".app/Contents/MacOS/") {
-		// Extract the .app path
 		appPath := executable[:strings.Index(executable, ".app/Contents/MacOS/")+4]
 		logger.Info("Detected .app bundle, using 'open' command", "app", appPath)
-		// Use 'open -n' to force a new instance
+		// -n forces a new instance instead of activating the existing one.
 		cmd = exec.Command("open", "-n", appPath)
 	} else {
-		// Direct executable
 		logger.Info("Using direct executable launch")
 		cmd = exec.Command(executable)
 	}

@@ -91,38 +91,34 @@ func (w *MainWindow) createProviderSelectionSection(selected string) fyne.Canvas
 }
 
 func (w *MainWindow) createProviderConfigSection() fyne.CanvasObject {
-	// API Key section
 	apiKeyLabel := widget.NewLabel("API Key:")
 	apiKeyLabel.TextStyle.Bold = true
 	apiKeyEntry := w.dirtyPasswordEntry()
 	apiKeyEntry.Bind(w.apiKeyBinding)
 	apiKeyEntry.PlaceHolder = "Enter your API key"
-	apiKeyEntry.Validator = nil // Disable validation icon
+	apiKeyEntry.Validator = nil // no validation icon
 
-	// Model section
 	modelLabel := widget.NewLabel("Model:")
 	modelLabel.TextStyle.Bold = true
 	modelEntry := w.dirtyEntry()
 	modelEntry.Bind(w.modelBinding)
 	modelEntry.PlaceHolder = "e.g., gpt-4o"
-	modelEntry.Validator = nil // Disable validation icon
+	modelEntry.Validator = nil // no validation icon
 
-	// Base URL section (for custom endpoints - only for OpenAI)
+	// Only shown for custom/OpenAI-compatible providers.
 	baseURLLabel := widget.NewLabel("Base URL:")
 	baseURLLabel.TextStyle.Bold = true
 	w.baseURLEntry = w.dirtyEntry()
 	w.baseURLEntry.Bind(w.baseURLBinding)
 	w.baseURLEntry.PlaceHolder = "https://api.openai.com/v1 (optional)"
-	w.baseURLEntry.Validator = nil // Disable validation icon
+	w.baseURLEntry.Validator = nil // no validation icon
 
-	// Create Base URL container for visibility control
 	w.baseURLContainer = container.NewVBox(
 		widget.NewSeparator(),
 		baseURLLabel,
 		w.baseURLEntry,
 	)
 
-	// Configuration form with proper spacing
 	configForm := container.NewVBox(
 		apiKeyLabel,
 		apiKeyEntry,
@@ -136,13 +132,11 @@ func (w *MainWindow) createProviderConfigSection() fyne.CanvasObject {
 }
 
 func (w *MainWindow) createConnectionTestSection() fyne.CanvasObject {
-	// Test connection button
 	testBtn := widget.NewButtonWithIcon("Test Connection", theme.ConfirmIcon(), func() {
 		w.testAPIConnection()
 	})
 	testBtn.Importance = widget.MediumImportance
 
-	// Layout with proper spacing
 	return container.NewVBox(
 		widget.NewLabel("Test your settings:"),
 		testBtn,
@@ -318,7 +312,6 @@ func (w *MainWindow) showAddCustomProviderDialog() {
 	var d dialog.Dialog
 
 	addBtn := widget.NewButton("Add", func() {
-		// Clear previous error
 		errorLabel.SetText("")
 
 		name := strings.TrimSpace(nameEntry.Text)
@@ -360,7 +353,6 @@ func (w *MainWindow) showAddCustomProviderDialog() {
 			return
 		}
 
-		// Success - close dialog and update UI
 		d.Hide()
 		w.refreshProviderList()
 		w.refreshOperationProviderOptions()

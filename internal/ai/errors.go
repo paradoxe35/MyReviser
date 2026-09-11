@@ -19,9 +19,7 @@ func apiError(statusCode int, format string, args ...any) error {
 	return &APIError{StatusCode: statusCode, Message: fmt.Sprintf(format, args...)}
 }
 
-// ParseAPIError creates a user-friendly error message from API response
 func ParseAPIError(statusCode int, body []byte, providerName string) error {
-	// Try to parse as generic structured error
 	var errResp struct {
 		Error *struct {
 			Message string      `json:"message"`
@@ -35,7 +33,6 @@ func ParseAPIError(statusCode int, body []byte, providerName string) error {
 		return apiError(statusCode, "API error (%d): %s", statusCode, errResp.Error.Message)
 	}
 
-	// Fallback to status-based messages
 	switch statusCode {
 	case 401:
 		return apiError(statusCode, "authentication failed: invalid API key or credentials")
@@ -48,7 +45,6 @@ func ParseAPIError(statusCode int, body []byte, providerName string) error {
 	case 500, 502, 503, 504:
 		return apiError(statusCode, "API server error (%d): service may be temporarily unavailable", statusCode)
 	default:
-		// Include first 100 chars of body if available
 		preview := string(body)
 		if len(preview) > 100 {
 			preview = preview[:100] + "..."
@@ -60,14 +56,12 @@ func ParseAPIError(statusCode int, body []byte, providerName string) error {
 	}
 }
 
-// ParseUnmarshalError handles JSON parsing errors with helpful messages
 func ParseUnmarshalError(err error, body []byte, statusCode int, providerName string) error {
 	bodyPreview := string(body)
 	if len(bodyPreview) > 200 {
 		bodyPreview = bodyPreview[:200] + "..."
 	}
 
-	// Check for common issues
 	if len(body) == 0 {
 		return fmt.Errorf("received empty response from API: verify the base URL is correct")
 	}
@@ -92,6 +86,5 @@ func ParseUnmarshalError(err error, body []byte, statusCode int, providerName st
 		return fmt.Errorf("endpoint not found: verify the base URL is correct")
 	}
 
-	// Generic unmarshal error with context
 	return fmt.Errorf("invalid API response format: %v (status: %d, response: %s)", err, statusCode, bodyPreview)
 }

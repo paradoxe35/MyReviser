@@ -19,7 +19,6 @@ func RestartApplication() error {
 
 	logger.Info("Restarting application", "executable", executable)
 
-	// For Linux/Windows, use direct execution
 	cmd := exec.Command(executable)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

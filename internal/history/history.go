@@ -49,8 +49,8 @@ type Store struct {
 
 func NewStore() *Store { return &Store{path: utils.AppHomeDir("history.jsonl")} }
 
-// OnChange registers a callback fired after every successful append. It runs
-// on the writing goroutine, so slow work belongs in the handler's own.
+// OnChange registers a callback fired after every successful append, on the writing goroutine
+// and outside the lock, so a handler may read the store back without deadlocking.
 func (s *Store) OnChange(fn func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -60,6 +60,13 @@ func (s *Store) OnChange(fn func()) {
 // Add appends an entry and trims the file to the cap. A failed write is
 // logged and dropped: history must never break the action it records.
 func (s *Store) Add(entry Entry) {
+	var notify func()
+	defer func() {
+		if notify != nil {
+			notify()
+		}
+	}()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -80,10 +87,7 @@ func (s *Store) Add(entry Entry) {
 		return
 	}
 	s.trimLocked()
-
-	if s.onChange != nil {
-		s.onChange()
-	}
+	notify = s.onChange
 }
 
 // Recent returns the newest entries first, filtered by kind. An empty kind
@@ -127,9 +131,8 @@ func (s *Store) Clear() {
 	_ = os.Remove(s.path)
 }
 
-// trimLocked rewrites the file without the oldest entries when over the cap.
-// Called after each append; with the cap at 200 the rewrite amortises to one
-// every MaxEntries appends.
+// trimLocked rewrites the file without the oldest entries when over the cap. Called after each
+// append; the rewrite amortises to one every MaxEntries appends.
 func (s *Store) trimLocked() {
 	info, err := os.Stat(s.path)
 	if err != nil || info.Size() < 64*MaxEntries {

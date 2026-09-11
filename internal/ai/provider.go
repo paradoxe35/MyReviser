@@ -22,14 +22,12 @@ type ProviderFactory struct {
 	current   Provider
 }
 
-// NewProviderFactory creates a new provider factory
 func NewProviderFactory() *ProviderFactory {
 	return &ProviderFactory{
 		providers: make(map[string]Provider),
 	}
 }
 
-// Register adds a new provider to the factory
 func (f *ProviderFactory) Register(name string, provider Provider) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -45,7 +43,6 @@ func (f *ProviderFactory) Reset() {
 	f.current = nil
 }
 
-// Get returns a provider by name
 func (f *ProviderFactory) Get(name string) (Provider, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
@@ -56,7 +53,6 @@ func (f *ProviderFactory) Get(name string) (Provider, error) {
 	return provider, nil
 }
 
-// SetCurrent sets the current active provider
 func (f *ProviderFactory) SetCurrent(name string) error {
 	provider, err := f.Get(name)
 	if err != nil {
@@ -71,7 +67,6 @@ func (f *ProviderFactory) SetCurrent(name string) error {
 	return nil
 }
 
-// GetCurrent returns the current active provider
 func (f *ProviderFactory) GetCurrent() Provider {
 	f.mu.RLock()
 	defer f.mu.RUnlock()

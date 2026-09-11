@@ -19,8 +19,7 @@ import (
 	"github.com/paradoxe35/encre/internal/utils"
 )
 
-// Shipped so the list renders offline and on first run. Regenerate with
-// scripts/gen_catalog.py.
+// Shipped so the list renders offline and on first run; regenerate with scripts/gen_catalog.py.
 //
 //go:embed models.json
 var embeddedCatalog []byte
@@ -53,8 +52,7 @@ var (
 
 func cachePath() string { return utils.AppHomeDir("catalog.json") }
 
-// Models prefers a cached download over the shipped copy, plus any model
-// files the user dropped into the models directory themselves.
+// Models prefers a cached download over the shipped copy.
 func Models() *Catalog {
 	catalogMu.RLock()
 	current := active
@@ -71,8 +69,7 @@ func Models() *Catalog {
 	return active
 }
 
-// discoverCustom finds model files in the models directory that no catalog
-// entry claims, so users can run fine-tuned or community models.
+// discoverCustom finds model files not claimed by the catalog, for fine-tuned or community models.
 func discoverCustom() []Model {
 	return discoverCustomIn(utils.AppHomeDir("models"))
 }
@@ -165,8 +162,7 @@ func stale() bool {
 	return catalog.origin == "embedded" || time.Since(catalog.fetched) > catalogMaxAge
 }
 
-// Refresh replaces the cached list. Parsed before it is written, so a truncated
-// download never displaces a list that works.
+// Refresh replaces the cached list; parsed before writing so a truncated download never displaces a working one.
 func Refresh(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, CatalogURL, nil)
 	if err != nil {
@@ -208,8 +204,7 @@ func Refresh(ctx context.Context) error {
 	return nil
 }
 
-// RefreshInBackground never blocks startup, and a failure is not surfaced: the
-// shipped list still works.
+// RefreshInBackground never blocks startup; failures aren't surfaced since the shipped list still works.
 func RefreshInBackground() {
 	if !stale() {
 		return
@@ -223,7 +218,17 @@ func RefreshInBackground() {
 	}()
 }
 
-func Catalogue() []Model { return append(Models().Models, discoverCustom()...) }
+// Catalogue is the published list plus whatever the user dropped into the models directory.
+// Copies rather than appends in place: the parsed slice has spare capacity, and appending
+// would write into memory the catalog still owns, racing other callers.
+func Catalogue() []Model {
+	published := Models().Models
+	custom := discoverCustom()
+
+	all := make([]Model, 0, len(published)+len(custom))
+	all = append(all, published...)
+	return append(all, custom...)
+}
 
 func FindModel(id string) (Model, bool) {
 	for _, model := range Catalogue() {

@@ -15,6 +15,17 @@ on:
 env:
   GO_VERSION: "1.24"
   RUST_VERSION: "stable"
+  # Left to itself ggml compiles -march=native on the native jobs and no SIMD at
+  # all on the cross ones. Pin an AVX2 baseline (x86 from ~2013) for every
+  # artifact; inert on arm64.
+  TRANSCRIBE_CMAKE_ARGS: >-
+    -DGGML_NATIVE=OFF
+    -DGGML_SSE42=ON
+    -DGGML_AVX=ON
+    -DGGML_AVX2=ON
+    -DGGML_FMA=ON
+    -DGGML_F16C=ON
+    -DGGML_BMI2=ON
 
 jobs:
   build-linux:
@@ -98,9 +109,7 @@ jobs:
 
       - name: Build Rust FFI library
         run: |
-          cd rust-ffi
-          cargo build --release
-          cd ..
+          bash scripts/build-rust-ffi.sh
           mkdir -p lib
           cp rust-ffi/target/release/libencre_ffi.a lib/
 
@@ -367,12 +376,11 @@ jobs:
         run: go mod download
 
       - name: Build Rust FFI library
+        shell: bash
         run: |
-          cd rust-ffi
-          cargo build --release --target x86_64-pc-windows-gnu
-          cd ..
-          New-Item -ItemType Directory -Force -Path lib
-          Copy-Item rust-ffi\target\x86_64-pc-windows-gnu\release\libencre_ffi.a lib\
+          bash scripts/build-rust-ffi.sh x86_64-pc-windows-gnu
+          mkdir -p lib
+          cp rust-ffi/target/x86_64-pc-windows-gnu/release/libencre_ffi.a lib/
 
       - name: Build application with Fyne
         env:
@@ -649,14 +657,13 @@ jobs:
       - name: Build Rust FFI library
         run: |
           mkdir -p lib
-          cd rust-ffi
           if [ "${{ matrix.arch }}" = "arm64" ]; then
-            cargo build --release --target aarch64-apple-darwin
-            cp target/aarch64-apple-darwin/release/libencre_ffi.a ../lib/
+            TARGET=aarch64-apple-darwin
           else
-            cargo build --release --target x86_64-apple-darwin
-            cp target/x86_64-apple-darwin/release/libencre_ffi.a ../lib/
+            TARGET=x86_64-apple-darwin
           fi
+          bash scripts/build-rust-ffi.sh "$TARGET"
+          cp rust-ffi/target/"$TARGET"/release/libencre_ffi.a lib/
 
       - name: Build application with Fyne
         env:

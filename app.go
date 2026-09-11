@@ -18,7 +18,6 @@ import (
 	"github.com/paradoxe35/encre/ui"
 )
 
-// Application represents the main application
 type Application struct {
 	app           fyne.App
 	mainWindow    *ui.MainWindow
@@ -36,24 +35,19 @@ type Application struct {
 	reloadDebounce time.Duration
 }
 
-// NewApplication creates a new application instance
 func NewApplication(app fyne.App, cfg *config.Config) (*Application, error) {
-	// Create revision processor
 	processor, err := revision.NewProcessor(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create processor: %w", err)
 	}
 
-	// Create FFI hotkey manager
 	hotkeyManager := input.NewFFIHotkeyManager()
 	if hotkeyManager == nil {
 		return nil, fmt.Errorf("failed to create FFI hotkey manager")
 	}
 
-	// Create notification manager
 	notifications := ui.NewNotificationManager(app)
 
-	// Create main window with hotkey manager reference
 	mainWindow := ui.NewMainWindow(app, cfg, hotkeyManager)
 	mainWindow.SetIcon(resourceIconPng)
 	mainWindow.SetHistoryStore(processor.History())
@@ -65,7 +59,7 @@ func NewApplication(app fyne.App, cfg *config.Config) (*Application, error) {
 		hotkeyManager:  hotkeyManager,
 		processor:      processor,
 		notifications:  notifications,
-		reloadDebounce: 500 * time.Millisecond, // Debounce rapid reloads
+		reloadDebounce: 500 * time.Millisecond,
 	}
 
 	application.dictation = revision.NewDictation(processor,
@@ -74,25 +68,20 @@ func NewApplication(app fyne.App, cfg *config.Config) (*Application, error) {
 			application.notifications.ShowError("Dictation failed", err.Error())
 		})
 
-	// Setup permission monitoring before hotkeys to update the UI early
+	// Set up permission monitoring before hotkeys so the UI reflects state early.
 	application.setupPermissions()
 
-	// Setup hotkeys
 	application.setupHotkeys()
 
 	stt.RefreshInBackground()
 	application.dictation.Prepare()
 
-	// Listen for config changes to reload hotkeys
 	config.RegisterListener(func(newCfg *config.Config) {
 		logger.Info("Config changed, reloading hotkeys")
-		// Update application config reference
 		application.config = newCfg
-		// Reload hotkeys with new bindings
 		application.reloadHotkeysFromConfig()
 	})
 
-	// Set platform-specific show/hide callbacks (for macOS Dock behavior)
 	mainWindow.SetShowHideCallbacks(showInDock, hideFromDock)
 
 	if desk, ok := app.(desktop.App); ok {
@@ -103,15 +92,13 @@ func NewApplication(app fyne.App, cfg *config.Config) (*Application, error) {
 		})
 	}
 
-	// Set tray tooltip
 	app.Lifecycle().SetOnStarted(func() {
 		systray.SetTooltip("Encre - AI Text Revision Tool")
 		installReopenHandler(application.ShowWindow)
 	})
 
-	// Setup window close intercept
 	mainWindow.SetCloseIntercept(func() {
-		mainWindow.HideWindow() // Use HideWindow to trigger callbacks
+		mainWindow.HideWindow() // HideWindow, not a raw close, so the hide callbacks still fire
 	})
 
 	return application, nil
@@ -172,10 +159,8 @@ func (a *Application) actionHandler(kind config.ActionKind) func() {
 	}
 }
 
-// reportBindingFailure says so when a shortcut could not be registered.
-//
-// Silence here is the worst outcome: an unregistered binding is indistinguishable from one the
-// system never delivers, and the settings screen goes on showing it as if it worked.
+// reportBindingFailure surfaces a failed shortcut registration; silent failure would be
+// indistinguishable from a binding the system just never delivers.
 func (a *Application) reportBindingFailure(binding string, err error) {
 	if err == nil {
 		return
@@ -184,9 +169,8 @@ func (a *Application) reportBindingFailure(binding string, err error) {
 	a.notifications.ShowError("Shortcut not registered", binding+": "+err.Error())
 }
 
-// reloadHotkeysFromConfig stops current hotkeys and re-registers with new config
+// reloadHotkeysFromConfig re-registers all hotkeys against the current config.
 func (a *Application) reloadHotkeysFromConfig() {
-	// Debounce rapid reload calls
 	a.reloadMutex.Lock()
 	now := time.Now()
 	if now.Sub(a.lastReloadTime) < a.reloadDebounce {
@@ -204,7 +188,7 @@ func (a *Application) reloadHotkeysFromConfig() {
 		return
 	}
 
-	// Clear all existing bindings (keep listener running to avoid spawning new threads)
+	// Bindings are cleared but the listener keeps running, so no new thread is spawned.
 	logger.Info("Clearing existing hotkey bindings")
 	if err := a.hotkeyManager.ClearBindings(); err != nil {
 		logger.Error("Failed to clear bindings", "error", err)
@@ -212,11 +196,10 @@ func (a *Application) reloadHotkeysFromConfig() {
 		return
 	}
 
-	// Re-register hotkeys with new config
 	logger.Info("Re-registering hotkeys with new config")
 	a.setupHotkeys()
 
-	// No need to stop/start - the running listener will use the updated bindings
+	// The running listener picks up updated bindings without a stop/start cycle.
 	logger.Info("Hotkeys reloaded successfully")
 }
 
@@ -294,17 +277,14 @@ func (a *Application) ShowWindow() {
 	fyne.Do(a.mainWindow.ShowWindow)
 }
 
-// Start starts the application
 func (a *Application) Start() error {
-	// Start hotkey manager
 	if err := a.hotkeyManager.Start(); err != nil {
 		return fmt.Errorf("failed to start hotkey manager: %w", err)
 	}
 
 	logger.Info("Application started successfully")
 
-	// Starting only spawns the listener thread; the system refuses the key tap after that, on that
-	// thread. Without this the app reports itself healthy while no shortcut can ever fire.
+	// Start only spawns the listener thread; the OS can still refuse the key tap on it, silently.
 	go func() {
 		time.Sleep(2 * time.Second)
 		if reason := a.hotkeyManager.ListenError(); reason != "" {
@@ -315,13 +295,12 @@ func (a *Application) Start() error {
 		}
 	}()
 
-	// Show window if permissions are pending, it's first run, or not set to start minimized
+	// Show the window if permissions are pending, on first run, or unless starting minimized.
 	if a.permissionsMissingOnLaunch {
 		a.mainWindow.ShowWindow()
 		logger.Info("Showing permissions screen", "permissions_pending", true)
 	} else if a.config.Meta.FirstRun || !a.config.Appearance.StartMinimized {
-		a.mainWindow.ShowWindow() // Shows window and Dock icon
-		// Mark first run complete and persist
+		a.mainWindow.ShowWindow()
 		if a.config.Meta.FirstRun {
 			a.config.Meta.FirstRun = false
 			if err := a.config.Save(); err != nil {
@@ -330,16 +309,14 @@ func (a *Application) Start() error {
 			logger.Info("First run complete, window shown")
 		}
 	} else {
-		hideFromDock() // Hide from Dock when starting minimized
+		hideFromDock()
 		logger.Info("Starting minimized to tray")
 	}
 
-	// Run the application
 	a.app.Run()
 	return nil
 }
 
-// Stop stops the application
 func (a *Application) Stop() {
 	logger.Info("Stopping application")
 
@@ -347,13 +324,11 @@ func (a *Application) Stop() {
 		a.permissionMonitorCancel()
 	}
 
-	// Stop and close FFI hotkey manager
 	if a.hotkeyManager != nil {
 		a.hotkeyManager.Stop()
 		a.hotkeyManager.Close()
 	}
 
-	// Close processor resources
 	if a.dictation != nil {
 		a.dictation.Close()
 	}
@@ -362,6 +337,5 @@ func (a *Application) Stop() {
 		a.processor.Close()
 	}
 
-	// Quit the app
 	a.app.Quit()
 }

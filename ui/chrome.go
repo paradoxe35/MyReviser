@@ -10,9 +10,7 @@ const (
 	titleBarHeight = 34
 )
 
-// newChromelessWindow is retained as the local construction point for the
-// settings window, but uses native window chrome so the title bar is draggable
-// on every supported desktop platform.
+// newChromelessWindow uses native chrome, not actually chromeless, so the title bar stays draggable on every platform.
 func newChromelessWindow(app fyne.App, title string) fyne.Window {
 	return app.NewWindow(title)
 }

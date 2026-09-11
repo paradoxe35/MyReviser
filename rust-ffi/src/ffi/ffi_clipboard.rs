@@ -3,9 +3,6 @@ use std::os::raw::{c_char, c_int};
 use super::ffi_types::*;
 use crate::core::ClipboardManager;
 
-// These built a Tokio runtime per call to await a lock that never yields. `block_on` also panics
-// when the calling thread already drives a runtime, and the JVM calls in from any thread.
-
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn encre_clipboard_new() -> ClipboardHandle {
     init_logging();
