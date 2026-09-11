@@ -39,6 +39,7 @@ pub enum Command {
     Unload,
     /// Transcribes a WAV on this thread, so verification shares the engine.
     TranscribeFile(PathBuf, Sender<Result<String>>),
+    TranscribeSamples(Vec<f32>, Sender<Result<String>>),
     Start,
     Stop(Sender<Stopped>),
     Cancel,
@@ -84,6 +85,16 @@ impl Recorder {
 
     pub fn unload(&self) {
         let _ = self.commands.send(Command::Unload);
+    }
+
+    /// Transcribes samples the recorder handed back, used when a streaming
+    /// take degraded and the audio has to go through in one pass.
+    pub fn transcribe_samples(&self, samples: Vec<f32>) -> Result<String> {
+        let (tx, rx) = channel();
+        self.commands
+            .send(Command::TranscribeSamples(samples, tx))
+            .map_err(|_| anyhow!("recorder thread is gone"))?;
+        rx.recv().map_err(|_| anyhow!("recorder dropped the reply"))?
     }
 
     /// Transcribes a WAV with the resident model, for settings verification.
@@ -133,6 +144,9 @@ fn run(commands: Receiver<Command>, levels: Sender<f32>) {
                 );
             }
             Ok(Command::Unload) => engine.unload(),
+            Ok(Command::TranscribeSamples(samples, reply)) => {
+                let _ = reply.send(engine.transcribe(&samples, None));
+            }
             Ok(Command::TranscribeFile(path, reply)) => {
                 let _ = reply.send(
                     crate::stt::engine::read_wav(&path)
@@ -183,7 +197,12 @@ fn record_streaming(
     let mut stream = StreamGuard::open(levels, preferred.as_deref()).ok();
     let mut pipeline = Pipeline::new();
     pipeline.reset(stream.as_ref().map(|s| s.rate).unwrap_or(SAMPLE_RATE));
-    let mut batched: Vec<f32> = Vec::new();
+    // Every frame is kept as well as streamed. A feed that fails mid-take
+    // leaves the live transcript missing words with nothing but a log line to
+    // say so, and losing what someone dictated is the one outcome worth
+    // spending a few megabytes to avoid.
+    let mut spoken: Vec<f32> = Vec::new();
+    let mut degraded = false;
     let mut live = LiveStream { stream: live };
 
     loop {
@@ -193,11 +212,28 @@ fn record_streaming(
             Ok(command) => match command {
                 Command::Stop(reply) => {
                     let tail = drain(&mut stream, &mut pipeline);
-                    let _ = live.feed(&tail);
+                    spoken.extend_from_slice(&tail);
+                    degraded |= live.feed(&tail).is_err();
+
+                    // A partial stream transcript is worse than none: the host
+                    // cannot tell which words are missing. Hand back the audio
+                    // instead and let it transcribe the whole take.
+                    if degraded {
+                        live.abort();
+                        let _ = reply.send(Stopped {
+                            samples: spoken,
+                            text: Ok(None),
+                        });
+                        return true;
+                    }
+
                     let text = live
                         .finalize()
                         .map_err(|e| format!("stream finalize failed: {e}"));
-                    let _ = reply.send(Stopped { samples: Vec::new(), text });
+                    let _ = reply.send(Stopped {
+                        samples: Vec::new(),
+                        text,
+                    });
                     return true;
                 }
                 Command::Cancel => {
@@ -214,9 +250,13 @@ fn record_streaming(
         if let Some(guard) = stream.as_ref() {
             pipeline.feed(&guard.take());
             let speech = pipeline.take();
+            spoken.extend_from_slice(&speech);
+
             if let Err(e) = live.feed(&speech) {
-                tracing::warn!("stream feed failed: {e}");
-                batched.extend_from_slice(&speech);
+                if !degraded {
+                    tracing::warn!("stream feed failed, falling back to batch: {e}");
+                }
+                degraded = true;
             }
         }
     }
@@ -659,5 +699,40 @@ mod tests {
 
         recorder.shutdown();
         assert!(result.is_err(), "loading a missing file must fail");
+    }
+}
+
+#[cfg(test)]
+mod degraded_tests {
+    use super::*;
+
+    /// A streaming take that lost frames must hand back the audio, not a
+    /// transcript with words silently missing from it.
+    #[test]
+    fn degraded_stream_returns_samples_for_batch() {
+        let stopped = Stopped {
+            samples: vec![0.1, 0.2, 0.3],
+            text: Ok(None),
+        };
+
+        assert!(
+            !stopped.samples.is_empty(),
+            "the host needs the audio to transcribe"
+        );
+        assert!(
+            matches!(stopped.text, Ok(None)),
+            "a partial transcript must not be offered as if complete"
+        );
+    }
+
+    /// Silence and a degraded stream both carry no text; only the samples tell
+    /// them apart, which is what the FFI branches on.
+    #[test]
+    fn silence_carries_no_samples() {
+        let stopped = Stopped {
+            samples: Vec::new(),
+            text: Ok(None),
+        };
+        assert!(stopped.samples.is_empty());
     }
 }

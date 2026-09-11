@@ -142,9 +142,22 @@ pub unsafe extern "C" fn encre_stt_stop(handle: SttHandle) -> *mut c_char {
 
     match stopped.text {
         Ok(Some(text)) => string_to_c_str(text),
-        // Silence is not a failure: the user pressed and released without
-        // speaking.
-        Ok(None) => string_to_c_str(String::new()),
+
+        // No transcript. Either the take held no speech, or streaming gave up
+        // and handed back the audio for one batch pass.
+        Ok(None) => {
+            if stopped.samples.is_empty() {
+                return string_to_c_str(String::new());
+            }
+            match recogniser.recorder.transcribe_samples(stopped.samples) {
+                Ok(text) => string_to_c_str(text),
+                Err(e) => {
+                    set_last_error(e.to_string());
+                    std::ptr::null_mut()
+                }
+            }
+        }
+
         Err(message) => {
             set_last_error(message);
             std::ptr::null_mut()
