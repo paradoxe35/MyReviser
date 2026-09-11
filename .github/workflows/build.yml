@@ -408,31 +408,6 @@ jobs:
             Move-Item Encre.exe encre-windows-${{ matrix.arch }}.exe
           }
 
-      - name: Generate Windows README
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          @"
-          Encre for Windows
-
-          Thank you for installing Encre, the Fyne-powered AI text revision assistant.
-
-          Getting Started:
-          1. Launch encre.exe (or use the Start Menu shortcut).
-          2. Right-click the tray icon to open Settings.
-          3. Configure your AI provider (OpenAI, Claude, or Gemini) and hotkeys.
-
-          Default Hotkeys:
-          - Ctrl+Alt+Space: Revise all text.
-          - Ctrl+Win: Revise selected text.
-
-          Tips:
-          - Enable "Start on login" from Settings > System to launch Encre automatically.
-          - Encre runs from the system tray; use the tray menu to quit or update preferences.
-
-          Support: https://github.com/paradoxe35/encre
-          "@ | Out-File -FilePath dist\README.txt -Encoding UTF8
-
       - name: Create portable ZIP
         shell: pwsh
         run: |
@@ -440,9 +415,6 @@ jobs:
           Copy-Item encre-windows-${{ matrix.arch }}.exe dist\portable\encre.exe -Force
           if (Test-Path "assets\icon.ico") {
             Copy-Item assets\icon.ico dist\portable\icon.ico -Force
-          }
-          if (Test-Path "dist\README.txt") {
-            Copy-Item dist\README.txt dist\portable\README.txt -Force
           }
           Compress-Archive -Path dist\portable\* -DestinationPath encre-windows-${{ matrix.arch }}-portable.zip -Force
 
@@ -506,7 +478,6 @@ jobs:
           Section "Encre" SEC_APP
             SetOutPath "`$INSTDIR"
             File /oname=encre.exe "encre-windows-${{ matrix.arch }}.exe"
-            File /nonfatal /oname=README.txt "dist\README.txt"
             File /nonfatal /oname=icon.ico "assets\icon.ico"
 
             Call RegisterApplication
@@ -521,7 +492,6 @@ jobs:
             Call un.StopApplication
 
             Delete "`$INSTDIR\encre.exe"
-            Delete "`$INSTDIR\README.txt"
             Delete "`$INSTDIR\icon.ico"
             Delete "`$INSTDIR\Uninstall.exe"
             RMDir "`$INSTDIR"
@@ -845,82 +815,29 @@ jobs:
         with:
           files: release/*
           body: |
-            Encre ${{ github.ref_name }}
-
-            AI-powered text revision tool with global hotkeys and multi-provider support.
+            AI-powered text revision, translation and dictation with global hotkeys.
 
             ## Downloads
 
-            **Windows**
-            - Portable (x64): `encre-windows-amd64-portable.zip`
-            - Installer (x64): `encre-windows-amd64-installer.exe`
+            - **Windows**: `encre-windows-amd64-installer.exe`, or `encre-windows-amd64-portable.zip`
+            - **macOS**: `encre-darwin-arm64.dmg` (Apple Silicon), `encre-darwin-amd64.dmg` (Intel)
+            - **Linux**: `encre-linux-amd64.deb`, `encre-linux-amd64.AppImage`, or `encre-linux-amd64.tar.gz`
 
-            **macOS**
-            - Intel (x64): `encre-darwin-amd64.dmg`
-            - Apple Silicon (ARM64): `encre-darwin-arm64.dmg`
+            Verify what you downloaded against `checksums.txt`.
 
-            **Linux**
-            - Portable (x64): `encre-linux-amd64.tar.gz`
-            - AppImage (x64): `encre-linux-amd64.AppImage`
-            - Debian/Ubuntu (x64): `encre-linux-amd64.deb`
+            ## Setup
 
-            Verify downloads with `checksums.txt`.
+            Installation, hotkeys and troubleshooting live in the
+            [README](https://github.com/paradoxe35/encre#installation). Two things
+            that catch people out:
 
-            ## Installation
-
-            **Windows**: Run installer or extract portable ZIP
-
-            **macOS**:
-            1. Download and extract ZIP or open DMG
-            2. First launch: Right-click Encre.app > Open > Click "Open"
-            3. Or go to System Settings > Privacy & Security > Click "Open Anyway"
-            4. Encre appears in menu bar (no Dock icon)
-            5. Grant Accessibility permissions when prompted
-
-            **Linux**:
-            ```bash
-            # AppImage
-            chmod +x encre-linux-amd64.AppImage
-            ./encre-linux-amd64.AppImage
-
-            # Debian/Ubuntu
-            sudo dpkg -i encre-linux-amd64.deb
-            ```
-
-            ## Quick Start
-
-            1. Launch Encre (appears in system tray)
-            2. Right-click tray icon > Settings
-            3. Configure AI provider (OpenAI, Claude, or Gemini)
-            4. Set hotkeys (optional)
-            5. Use global hotkeys to revise text
-
-            ## Default Hotkeys
-
-            - Select All & Revise: `Ctrl+Alt+Space` (Linux/Windows), `Cmd+Option+Space` (macOS)
-            - Revise Selection: `Ctrl+Super` (Linux), `Ctrl+Win` (Windows), `Ctrl+Cmd` (macOS)
-
-            ## Requirements
-
-            **Linux**:
-            - X11 or Wayland session
-            - **Wayland users only**: Add yourself to the `input` group for hotkeys to work:
-              ```bash
-              sudo usermod -aG input $USER
-              # Then log out and log back in
-              ```
-            - X11 users: No special setup needed, hotkeys work out of the box
-            - Required packages (Debian/Ubuntu):
-              ```bash
-              sudo apt install libgl1 libx11-6 libxext6 libxcb1 libxinerama1 libxtst6 libxdo3 libxkbcommon0 libxi6 libxcursor1 libxrandr2 libxrender1 libxfixes3 libxxf86vm1 libasound2
-              ```
-            - Note: The .deb package installs required packages automatically
-
-            **macOS**: macOS 10.13+, accessibility permissions required
-            **Windows**: Windows 10+
+            - **macOS**: the first launch is blocked. Right-click the app > Open.
+              The ZIP ships `INSTALL_MACOS.txt` with the alternatives.
+            - **Linux on Wayland**: hotkeys need you in the `input` group.
+              `sudo usermod -aG input $USER`, then log out and back in.
           draft: false
           prerelease: false
-          generate_release_notes: false
+          generate_release_notes: true
 
       # The release owns the files now, so the per-run copies are duplicates
       # against the storage quota. Runs only after the upload succeeded, so a
