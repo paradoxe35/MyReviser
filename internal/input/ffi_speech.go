@@ -7,7 +7,11 @@ package input
 // audio API. cgo unions LDFLAGS across the package, so they belong here rather
 // than repeated in every file.
 #cgo linux LDFLAGS: -lstdc++ -lasound
-#cgo darwin LDFLAGS: -lc++ -framework AudioToolbox -framework CoreAudio -framework AudioUnit
+// Accelerate is ggml's, not cpal's: ggml-cpu compiles with GGML_USE_ACCELERATE on
+// Apple and calls vDSP directly. The library's own link manifest only lists the
+// framework when the BLAS backend is on, which this build forces off, so nothing
+// upstream of here asks for it and the final link would die on _vDSP_vadd.
+#cgo darwin LDFLAGS: -lc++ -framework Accelerate -framework AudioToolbox -framework CoreAudio -framework AudioUnit
 #cgo windows LDFLAGS: -lstdc++ -lole32 -lavrt
 
 #include <stdlib.h>

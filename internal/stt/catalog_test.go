@@ -152,3 +152,25 @@ func TestLanguageSummary(t *testing.T) {
 		}
 	}
 }
+
+// Every code the catalog ships must have an English name: an unnamed one falls
+// back to the raw code, which is how "sn" and "tt" ended up in a list that
+// otherwise reads as prose.
+func TestCatalogLanguagesAllNamed(t *testing.T) {
+	shipped, err := parseCatalog(embeddedCatalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, model := range shipped.Models {
+		for _, code := range model.Languages {
+			if seen[code] {
+				continue
+			}
+			seen[code] = true
+			if LanguageName(code) == code {
+				t.Errorf("language %q has no English name", code)
+			}
+		}
+	}
+}

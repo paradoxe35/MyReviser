@@ -315,7 +315,12 @@ func showModelDetails(window fyne.Window, model stt.Model, host stt.Machine, dow
 	body.Wrapping = fyne.TextWrapWord
 	body.Selectable = true
 
-	d := dialog.NewCustom(model.Name, "Close", body, window)
+	// A multilingual model names ninety-nine languages, which is taller than any
+	// dialog we want to open, so the content scrolls instead of being clipped.
+	content := container.NewVScroll(body)
+	content.SetMinSize(fyne.NewSize(400, 320))
+
+	d := dialog.NewCustom(model.Name, "Close", content, window)
 	d.Resize(fyne.NewSize(420, 360))
 	d.Show()
 }

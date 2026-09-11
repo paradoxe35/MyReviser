@@ -26,8 +26,10 @@ var languageNames = map[string]string{
 	"ur": "Urdu", "hi": "Hindi", "bn": "Bengali", "ta": "Tamil",
 	"te": "Telugu", "mr": "Marathi", "gu": "Gujarati", "pa": "Punjabi",
 	"th": "Thai", "vi": "Vietnamese", "id": "Indonesian", "ms": "Malay",
-	"tl": "Filipino", "zh": "Chinese", "ja": "Japanese", "ko": "Korean",
-	"sv": "Swedish", "da": "Danish", "nb": "Norwegian", "fi": "Finnish",
+	"tl": "Filipino", "fil": "Filipino", "zh": "Chinese", "yue": "Cantonese",
+	"ja": "Japanese", "ko": "Korean",
+	"sv": "Swedish", "da": "Danish", "no": "Norwegian", "nb": "Norwegian",
+	"nn": "Norwegian Nynorsk", "fi": "Finnish",
 	"is": "Icelandic", "ca": "Catalan", "eu": "Basque", "gl": "Galician",
 	"cy": "Welsh", "ga": "Irish", "af": "Afrikaans", "sw": "Swahili",
 	"am": "Amharic", "ha": "Hausa", "yo": "Yoruba", "ig": "Igbo",
@@ -38,7 +40,14 @@ var languageNames = map[string]string{
 	"sr": "Serbian", "hr": "Croatian", "sl": "Slovenian", "mk": "Macedonian",
 	"bs": "Bosnian", "et": "Estonian", "lv": "Latvian", "lt": "Lithuanian",
 	"ml": "Malayalam", "kn": "Kannada", "or": "Odia", "so": "Somali",
-	"om": "Oromo", "jv": "Javanese", "su": "Sundanese", "eo": "Esperanto",
+	"om": "Oromo", "jv": "Javanese", "jw": "Javanese", "su": "Sundanese",
+	"eo": "Esperanto",
+	"as": "Assamese", "ba": "Bashkir", "be": "Belarusian", "bo": "Tibetan",
+	"br": "Breton", "fo": "Faroese", "haw": "Hawaiian", "ht": "Haitian Creole",
+	"la": "Latin", "lb": "Luxembourgish", "mi": "Maori", "mt": "Maltese",
+	"oc": "Occitan", "ps": "Pashto", "sa": "Sanskrit", "sd": "Sindhi",
+	"sn": "Shona", "tg": "Tajik", "tk": "Turkmen", "tt": "Tatar",
+	"yi": "Yiddish",
 }
 
 // SpeedLabel describes how a model is expected to keep up on this machine.
@@ -83,7 +92,9 @@ func ModelDetails(model Model, host Machine, downloaded bool) string {
 		lines = append(lines, "License: "+model.License)
 	}
 	if model.WordErrorRate > 0 {
-		lines = append(lines, fmt.Sprintf("Word error rate: %.1f%%", model.WordErrorRate*100))
+		// The catalog already stores this as a percentage (whisper-tiny is 7.53,
+		// not 0.0753), so scaling it again printed "753.0%".
+		lines = append(lines, fmt.Sprintf("Word error rate: %.1f%%", model.WordErrorRate))
 	}
 
 	state := "Not downloaded"
