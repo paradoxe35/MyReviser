@@ -6,11 +6,9 @@ import (
 	"sync"
 )
 
-// ReasoningStyle is how a provider wants to be told to think less.
-//
-// There is no portable parameter, and getting it wrong is not silently ignored: OpenAI returns 400
-// for reasoning_effort on a model that does not reason, and OpenRouter returns 400 if it sees both
-// its own shape and OpenAI's. So the shape is chosen per provider and, crucially, is recoverable.
+// ReasoningStyle is how a provider wants to be told to think less. There is no portable parameter:
+// OpenAI 400s on reasoning_effort for a non-reasoning model, and OpenRouter 400s if it sees both
+// shapes at once.
 type ReasoningStyle int
 
 const (
@@ -24,8 +22,8 @@ type ReasoningAware interface {
 	SetLowReasoning(low bool)
 }
 
-// DetectReasoningStyle picks OpenRouter out by host rather than by provider type, because a custom
-// provider can point at it too and it is the one OpenAI-compatible gateway with its own shape.
+// DetectReasoningStyle matches by host, not provider type: a custom provider can point at
+// OpenRouter too, and it's the one OpenAI-compatible gateway with its own request shape.
 func DetectReasoningStyle(baseURL string) ReasoningStyle {
 	if strings.Contains(strings.ToLower(baseURL), "openrouter.ai") {
 		return ReasoningOpenRouter
@@ -33,21 +31,16 @@ func DetectReasoningStyle(baseURL string) ReasoningStyle {
 	return ReasoningOpenAIEffort
 }
 
-// rejected remembers which endpoint/model pairs refused a reasoning parameter, so the wasted round
-// trip is paid once rather than on every correction.
-//
-// Process-scoped on purpose: a model's capabilities change under the same name, and a stale "this
-// does not work" persisted to disk would be far more annoying than one extra request per launch.
+// rejected caches endpoint/model pairs that refused a reasoning parameter, so the wasted round trip
+// happens once per launch rather than on every correction. Process-scoped: persisting it would risk
+// a stale rejection outliving a model upgrade.
 var rejected sync.Map
 
-// withReasoningFallback runs send with the reasoning parameter, and once without it if the provider
-// rejects the request.
-//
-// The retry keys on the status rather than the message, because every provider words it
-// differently and a match that misses just surfaces a confusing 400. The rejection is remembered
-// only when dropping the parameter actually helped: a 400 has many causes — an unknown model, a
-// malformed body, an exhausted quota — and caching on the status alone would let any of them switch
-// reasoning off for the rest of the session on a model that never objected.
+// withReasoningFallback sends with the reasoning parameter, retrying without it on rejection. It
+// matches on status code rather than message text, since every provider words the error
+// differently, and only caches the rejection once dropping the parameter is confirmed to fix it —
+// a 400 has other causes too, and caching on status alone could silence reasoning for a model that
+// never objected.
 func withReasoningFallback(endpoint, model string, wanted bool, send func(includeReasoning bool) (string, error)) (string, error) {
 	key := endpoint + "::" + model
 	if _, refused := rejected.Load(key); !wanted || refused {

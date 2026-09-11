@@ -39,10 +39,11 @@ def fetch(url):
 
 
 def split_camel(word):
-    """SenseVoiceSmall -> Sense Voice Small, leaving acronyms and versions be."""
+    """SenseVoiceSmall -> Sense Voice Small. A capital after a digit is a unit,
+    not a new word, so 3B stays 3B."""
     out, current = [], ""
     for char in word:
-        if char.isupper() and current and not current[-1].isupper():
+        if char.isupper() and current and not current[-1].isupper() and not current[-1].isdigit():
             out.append(current)
             current = char
         else:
@@ -64,7 +65,16 @@ def display_name(slug):
     return " ".join(words)
 
 
-def pick_quant(files):
+def file_size(f):
+    return (f.get("lfs") or {}).get("size") or f.get("size")
+
+
+def pick_quant(files, max_bytes=None):
+    """Best quantisation that fits under the size cap.
+
+    A repo is only out of reach when none of its quantisations fit: Voxtral's
+    Q8_0 is 4.7 GB but its Q5_K_M is 3.2 GB at 0.04 more WER.
+    """
     by_quant = {}
     for f in files:
         path = f["path"]
@@ -74,8 +84,13 @@ def pick_quant(files):
             if path.upper().endswith(f"-{quant}.GGUF"):
                 by_quant[quant] = f
     for quant in QUANT_PREFERENCE:
-        if quant in by_quant:
-            return quant, by_quant[quant]
+        chosen = by_quant.get(quant)
+        if chosen is None:
+            continue
+        size = file_size(chosen)
+        if max_bytes and size and size > max_bytes:
+            continue
+        return quant, chosen
     return None, None
 
 
@@ -125,20 +140,17 @@ def resolve(repo_id):
     except urllib.error.HTTPError:
         return None
 
-    quant, chosen = pick_quant(files)
+    quant, chosen = pick_quant(files, MAX_SIZE_BYTES)
     if chosen is None:
-        print(f"  skip {slug}: no usable quantisation", file=sys.stderr)
+        print(f"  skip {slug}: no quantisation under "
+              f"{MAX_SIZE_BYTES / 1024**3:.0f} GB", file=sys.stderr)
         return None
 
-    lfs = chosen.get("lfs") or {}
-    sha256 = lfs.get("oid")
-    size = lfs.get("size") or chosen.get("size")
+    sha256 = (chosen.get("lfs") or {}).get("oid")
+    size = file_size(chosen)
 
     if not sha256:
         print(f"  skip {slug}: no checksum published", file=sys.stderr)
-        return None
-    if size and size > MAX_SIZE_BYTES:
-        print(f"  skip {slug}: {size / 1024**3:.1f} GB is too large", file=sys.stderr)
         return None
 
     languages = card.get("language") or []

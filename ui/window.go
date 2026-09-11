@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	// UI spacing constants
 	PaddingSmall  = 5
 	PaddingMedium = 10
 	PaddingLarge  = 20
@@ -34,7 +33,6 @@ type MainWindow struct {
 	mainContent         fyne.CanvasObject
 	permissionContainer fyne.CanvasObject
 
-	// Data bindings
 	providerBinding       binding.String
 	apiKeyBinding         binding.String
 	modelBinding          binding.String
@@ -71,15 +69,12 @@ type MainWindow struct {
 	speechRemoteURL   *widget.Entry
 	speechRemoteKey   *widget.Entry
 
-	// UI containers for dynamic visibility
 	baseURLContainer *fyne.Container
 	baseURLEntry     *widget.Entry
 
-	// Custom provider UI components
 	providerSelect       *widget.Select
 	deleteProviderButton *widget.Button
 
-	// Platform-specific callbacks
 	onShowCallback func()
 	onHideCallback func()
 }
@@ -102,20 +97,16 @@ func NewMainWindow(app fyne.App, cfg *config.Config, hotkeyManager *input.FFIHot
 	}
 	mw.initializing = true
 
-	// Set restart button callback
 	prompt.restartButton.OnTapped = mw.restartApplication
 
-	// Initialize data bindings
 	mw.initBindings()
 
-	// Apply theme from config
 	themeName := cfg.Appearance.Theme
 	if themeName == "" {
 		themeName = "auto"
 	}
 	mw.applyTheme(themeName)
 
-	// Create and set content containers
 	mw.mainContent = mw.createContent()
 	mw.permissionContainer = mw.permissionPrompt.canvasObject()
 	mw.rootContainer = container.NewStack(mw.mainContent, mw.permissionContainer)
@@ -136,11 +127,9 @@ func (w *MainWindow) initBindings() {
 	w.startOnLoginBinding = binding.NewBool()
 	w.themeBinding = binding.NewString()
 
-	// Set initial values from config
 	currentProvider := w.config.GetCurrentProvider()
 	w.providerBinding.Set(currentProvider)
 
-	// Load settings for current provider
 	w.loadProviderSettings(currentProvider)
 
 	w.hotkeyBindings = make(map[config.ActionKind]binding.String, len(config.ActionOrder))
@@ -153,25 +142,21 @@ func (w *MainWindow) initBindings() {
 	w.statusBinding.Set("Ready")
 	w.startMinimizedBinding.Set(w.config.Appearance.StartMinimized)
 
-	// Sync StartOnLogin with actual system state
-	// The user might have removed the login item outside the app
+	// Re-check actual system state: the user may have removed the login item outside the app.
 	autoStart := platform.GetAutoStart()
 	actualStartOnLogin := autoStart.IsEnabled()
 	w.startOnLoginBinding.Set(actualStartOnLogin)
 
-	// Checkboxes write through these bindings, so one listener per binding
-	// covers both directions without being overwritten by Bind.
+	// One listener per binding covers both directions without Bind overwriting it.
 	w.startMinimizedBinding.AddListener(binding.NewDataListener(w.markDirty))
 	w.startOnLoginBinding.AddListener(binding.NewDataListener(w.markDirty))
 
-	// Update config if out of sync
 	if w.config.Appearance.StartOnLogin != actualStartOnLogin {
 		w.config.Appearance.StartOnLogin = actualStartOnLogin
 		w.config.Save()
 		logger.Info("Synced StartOnLogin with system state", "enabled", actualStartOnLogin)
 	}
 
-	// Set theme, default to "auto" if empty
 	theme := w.config.Appearance.Theme
 	if theme == "" {
 		theme = "auto"
@@ -232,15 +217,12 @@ func (w *MainWindow) createContent() fyne.CanvasObject {
 		container.NewTabItemWithIcon("System", theme.SettingsIcon(), w.createSystemSection()),
 	)
 
-	// Fix for AppTabs layout width issue on Windows
-	// See: https://github.com/fyne-io/fyne/issues/5338
 	tabs.OnSelected = func(tab *container.TabItem) {
 		// History shows other tabs' activity, so it re-reads on every visit.
 		if tab.Text == "History" && w.refreshHistory != nil {
 			fyne.Do(w.refreshHistory)
 		}
-		// Fix for AppTabs layout width issue on Windows
-		// See: https://github.com/fyne-io/fyne/issues/5338
+		// Works around an AppTabs layout width bug on Windows: https://github.com/fyne-io/fyne/issues/5338
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			fyne.Do(func() {
@@ -249,7 +231,6 @@ func (w *MainWindow) createContent() fyne.CanvasObject {
 		}()
 	}
 
-	// Save button
 	saveBtn := widget.NewButtonWithIcon("Save Settings", theme.DocumentSaveIcon(), w.saveSettings)
 	saveBtn.Importance = widget.HighImportance
 	w.unsavedLabel = widget.NewLabel("Unsaved changes")
@@ -257,7 +238,6 @@ func (w *MainWindow) createContent() fyne.CanvasObject {
 	w.unsavedLabel.Importance = widget.WarningImportance
 	w.unsavedLabel.Hide()
 
-	// Main layout
 	content := container.NewBorder(
 		nil, // top
 		container.NewBorder(nil, nil, nil, container.NewHBox(w.unsavedLabel, saveBtn), statusBar), // bottom
@@ -298,8 +278,7 @@ func (w *MainWindow) historyStoreRef() *history.Store {
 	return w.historyStore
 }
 
-// SetHistoryStore shares the processor's history store with the UI and makes
-// any new entry refresh an open History tab immediately.
+// SetHistoryStore shares the processor's history store with the UI, refreshing an open History tab on new entries.
 func (w *MainWindow) SetHistoryStore(store *history.Store) {
 	w.historyStore = store
 	store.OnChange(func() {
@@ -313,15 +292,13 @@ func (w *MainWindow) SetHistoryStore(store *history.Store) {
 
 func (w *MainWindow) ShowWindow() {
 	w.Show()
-	// After the window exists: the Dock entry activates the app, and activating with nothing on
-	// screen is what leaves it frontmost and empty.
+	// Must run after Show: the Dock entry activates the app, which otherwise leaves it frontmost and empty.
 	if w.onShowCallback != nil {
 		w.onShowCallback()
 	}
 	w.RequestFocus()
 
-	// Force layout refresh after show to fix Windows minimize/restore sizing issue
-	// See: https://github.com/fyne-io/fyne/issues/300
+	// Works around a Windows minimize/restore sizing bug: https://github.com/fyne-io/fyne/issues/300
 	w.Resize(w.Canvas().Size())
 	w.Content().Refresh()
 }
@@ -329,16 +306,12 @@ func (w *MainWindow) ShowWindow() {
 // HideWindow hides the window and handles platform-specific behavior (e.g., macOS Dock)
 func (w *MainWindow) HideWindow() {
 	w.Hide()
-	// Call the platform-specific hide handler if set
 	if w.onHideCallback != nil {
 		w.onHideCallback()
 	}
 }
 
-// SetShowHideCallbacks sets the callbacks for platform-specific show/hide behavior
 func (w *MainWindow) SetShowHideCallbacks(onShow func(), onHide func()) {
 	w.onShowCallback = onShow
 	w.onHideCallback = onHide
 }
-
-// applyAutoStartSetting enables or disables auto-start based on the setting

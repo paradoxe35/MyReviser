@@ -49,8 +49,7 @@ func (s *Service) engine() (*input.FFISpeech, error) {
 	return speech, nil
 }
 
-// Prepare loads the model and opens the microphone ahead of the first
-// dictation. Every step is idempotent, so it is cheap to call repeatedly.
+// Prepare loads the model and opens the microphone ahead of the first dictation; idempotent.
 func (s *Service) Prepare(cfg config.SpeechConfig) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -67,8 +66,7 @@ func (s *Service) Prepare(cfg config.SpeechConfig) error {
 	return nil
 }
 
-// applyDevice is a no-op when nothing changed, so a warmed stream is not torn
-// down and reopened on every dictation.
+// applyDevice is a no-op when nothing changed, so a warmed stream isn't torn down and reopened every dictation.
 func (s *Service) applyDevice(speech *input.FFISpeech, cfg config.SpeechConfig) {
 	if s.device == cfg.InputDevice {
 		return
@@ -98,10 +96,8 @@ func (s *Service) load(speech *input.FFISpeech, cfg config.SpeechConfig) error {
 		return nil
 	}
 	if err := speech.Load(path); err != nil {
-		// The Rust load unloads any resident model before attempting, so a
-		// failure leaves the engine empty. Forgetting the stale marker here
-		// is what makes the next dictation retry instead of replaying the
-		// same failure forever.
+		// The Rust load unloads any resident model first, so a failure leaves the engine
+		// empty; clearing the stale marker makes the next dictation retry instead of looping.
 		s.loaded = ""
 		return err
 	}
@@ -183,8 +179,7 @@ func (s *Service) TranscribeFile(cfg config.SpeechConfig, path string) (string, 
 	return speech.TranscribeFile(path)
 }
 
-// Devices lists microphones. Creating the engine is deferred until something
-// needs it, so this is the first call that may open an audio device.
+// Devices lists microphones; may be the first call that opens an audio device, since the engine is lazy.
 func (s *Service) Devices() []input.Device {
 	return input.InputDevices()
 }

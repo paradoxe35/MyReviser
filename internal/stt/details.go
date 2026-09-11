@@ -6,8 +6,7 @@ import (
 	"strings"
 )
 
-// LanguageName resolves a catalog language code to its English name, falling
-// back to the code itself when unknown.
+// LanguageName resolves a catalog language code to its English name, falling back to the code itself when unknown.
 func LanguageName(code string) string {
 	if name, ok := languageNames[strings.ToLower(code)]; ok {
 		return name
@@ -15,8 +14,7 @@ func LanguageName(code string) string {
 	return code
 }
 
-// languageNames covers the codes the model catalog uses. Not exhaustive: an
-// unknown code displays as-is rather than hiding the model's capability.
+// languageNames covers the codes the model catalog uses; not exhaustive, unknown codes display as-is.
 var languageNames = map[string]string{
 	"en": "English", "fr": "French", "es": "Spanish", "de": "German",
 	"it": "Italian", "pt": "Portuguese", "nl": "Dutch", "pl": "Polish",
@@ -51,12 +49,13 @@ var languageNames = map[string]string{
 }
 
 // SpeedLabel describes how a model is expected to keep up on this machine.
-// The thresholds match the row summaries: comfortable runs are "fast", ten
-// times real-time or better is "very fast".
+// Thresholds match the row summaries: comfortable is "fast", 10x realtime or better is "very fast".
 func SpeedLabel(model Model, host Machine) string {
 	switch model.Fit(host) {
 	case FitTooLarge:
 		return "too large for this machine"
+	case FitUnknown:
+		return "speed unknown"
 	case FitSlow:
 		return "slow here"
 	default:
@@ -67,9 +66,8 @@ func SpeedLabel(model Model, host Machine) string {
 	}
 }
 
-// ModelDetails renders the human-facing facts about a model: what it speaks,
-// what it costs to run, and how it is expected to behave on this machine.
-// Deliberately omits the catalog description and raw benchmark numbers.
+// ModelDetails renders the human-facing facts about a model: languages, cost to run, and
+// expected behavior on this machine. Omits the catalog description and raw benchmark numbers.
 func ModelDetails(model Model, host Machine, downloaded bool) string {
 	var lines []string
 
@@ -92,8 +90,6 @@ func ModelDetails(model Model, host Machine, downloaded bool) string {
 		lines = append(lines, "License: "+model.License)
 	}
 	if model.WordErrorRate > 0 {
-		// The catalog already stores this as a percentage (whisper-tiny is 7.53,
-		// not 0.0753), so scaling it again printed "753.0%".
 		lines = append(lines, fmt.Sprintf("Word error rate: %.1f%%", model.WordErrorRate))
 	}
 
@@ -110,8 +106,9 @@ func ModelDetails(model Model, host Machine, downloaded bool) string {
 }
 
 func streamingLine(model Model) string {
+	// Transcript lands the moment you stop speaking; not live captions mid-sentence.
 	if model.Streaming {
-		return "Streaming: supported — text appears while you speak"
+		return "Streaming: supported — transcribes as you speak, so text lands the moment you stop"
 	}
-	return "Streaming: not supported — text appears when you stop"
+	return "Streaming: not supported — transcription starts when you stop speaking"
 }

@@ -164,19 +164,17 @@ fn run(commands: Receiver<Command>, levels: Sender<f32>) {
     }
 }
 
-/// Runs one recording session on this thread and returns when it ends. The
-/// engine stream, if the model supports one, lives entirely inside this
+/// Runs one recording session and returns when it ends, `false` only on shutdown.
+/// The engine stream, if the model supports one, lives entirely inside this
 /// function so it borrows the session for exactly the recording's lifetime.
-/// Returns `false` only on shutdown.
 fn record(
     commands: &Receiver<Command>,
     levels: Sender<f32>,
     engine: &mut Engine,
     preferred: Option<String>,
 ) -> bool {
-    // Try streaming first; on any failure fall back to a plain batch session.
-    // The result is dropped explicitly so the borrow ends before the engine
-    // is handed to either session function.
+    // Try streaming first, falling back to batch on failure. Dropped explicitly
+    // so the borrow ends before the engine is handed to either session function.
     let started = engine.stream_begin(None);
     if let Ok(stream) = started {
         return record_streaming(commands, levels, preferred, stream);
@@ -197,10 +195,8 @@ fn record_streaming(
     let mut stream = StreamGuard::open(levels, preferred.as_deref()).ok();
     let mut pipeline = Pipeline::new();
     pipeline.reset(stream.as_ref().map(|s| s.rate).unwrap_or(SAMPLE_RATE));
-    // Every frame is kept as well as streamed. A feed that fails mid-take
-    // leaves the live transcript missing words with nothing but a log line to
-    // say so, and losing what someone dictated is the one outcome worth
-    // spending a few megabytes to avoid.
+    // Kept as well as streamed: a feed failure would otherwise silently drop
+    // words, and losing dictated audio is worth the extra memory to avoid.
     let mut spoken: Vec<f32> = Vec::new();
     let mut degraded = false;
     let mut live = LiveStream { stream: live };
@@ -215,9 +211,8 @@ fn record_streaming(
                     spoken.extend_from_slice(&tail);
                     degraded |= live.feed(&tail).is_err();
 
-                    // A partial stream transcript is worse than none: the host
-                    // cannot tell which words are missing. Hand back the audio
-                    // instead and let it transcribe the whole take.
+                    // A partial transcript is worse than none: the host can't tell
+                    // what's missing, so hand back the audio for a batch retry.
                     if degraded {
                         live.abort();
                         let _ = reply.send(Stopped {
@@ -373,8 +368,8 @@ impl StreamGuard {
         let (tx, rx) = channel();
 
         let stream = build_stream(&device, &config, tx, levels)?;
-        // cpal 0.18 no longer starts a stream on creation. Without this the
-        // callback never fires and every recording comes back silent.
+        // cpal 0.18 doesn't auto-start streams; without this the callback never
+        // fires and recordings come back silent.
         stream.play()?;
 
         Ok(Self {
@@ -411,8 +406,8 @@ struct SelectedConfig {
     format: SampleFormat,
 }
 
-/// Falls back to the default when the chosen device is gone: a microphone that
-/// was unplugged should not stop dictation from working at all.
+/// Falls back to the default device when the chosen one is gone, so an
+/// unplugged microphone doesn't stop dictation from working.
 fn open_device(preferred: Option<&str>) -> Result<Device> {
     let host = host();
 
@@ -450,8 +445,8 @@ pub fn devices() -> (Vec<String>, Option<String>) {
 }
 
 fn host() -> cpal::Host {
-    // ALSA rather than cpal's default on Linux: PulseAudio and PipeWire both
-    // expose an ALSA interface, and going direct avoids a resampling hop.
+    // ALSA over cpal's default on Linux: PulseAudio/PipeWire both expose an
+    // ALSA interface, and going direct avoids a resampling hop.
     #[cfg(target_os = "linux")]
     {
         cpal::host_from_id(cpal::HostId::Alsa).unwrap_or_else(|_| cpal::default_host())
@@ -462,9 +457,9 @@ fn host() -> cpal::Host {
     }
 }
 
-/// Takes the device's own rate rather than demanding 16 kHz. Forcing a rate the
-/// hardware does not want is how Bluetooth headsets end up in headset profile,
-/// or ALSA refuses the stream outright.
+/// Uses the device's own rate instead of forcing 16 kHz: forcing a rate the
+/// hardware doesn't want can drop Bluetooth headsets into headset profile or
+/// make ALSA refuse the stream outright.
 fn preferred_config(device: &Device) -> Result<SelectedConfig> {
     let default = device.default_input_config()?;
     let rate = default.sample_rate();
@@ -568,7 +563,7 @@ impl Pipeline {
 
     fn reset(&mut self, input_rate: u32) {
         // A resampler carries FFT overlap between calls; reusing one across
-        // recordings leaks the tail of the previous take into the next.
+        // takes would leak the tail of the previous recording into the next.
         self.resampler = (input_rate != SAMPLE_RATE)
             .then(|| {
                 rubato::FftFixedIn::<f32>::new(
@@ -634,8 +629,8 @@ impl Pipeline {
         }
 
         if self.onset >= ONSET_FRAMES {
-            // Onset confirmed: replay the buffered attack, then stay open for
-            // the hangover so the tail of the utterance is not cut.
+            // Onset confirmed: replay the buffered attack, then hold open for
+            // the hangover window so the tail isn't cut.
             self.speech.extend(self.prefill.drain(..).flatten());
             self.hangover = HANGOVER_FRAMES;
         }
@@ -686,9 +681,7 @@ impl Pipeline {
 mod tests {
     use super::*;
 
-    /// A failed model load must reach the host as an error, not a success:
-    /// masking it let dictation fail later with "no model loaded" despite the
-    /// settings screen showing the model as ready.
+    /// A failed load must reach the host as an error, not be masked as success.
     #[test]
     fn load_reports_failure() {
         let (levels, _level_rx) = channel();
@@ -706,8 +699,7 @@ mod tests {
 mod degraded_tests {
     use super::*;
 
-    /// A streaming take that lost frames must hand back the audio, not a
-    /// transcript with words silently missing from it.
+    /// A degraded streaming take hands back audio, not a transcript missing words.
     #[test]
     fn degraded_stream_returns_samples_for_batch() {
         let stopped = Stopped {

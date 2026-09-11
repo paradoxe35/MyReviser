@@ -36,12 +36,10 @@ func IsProduction(app fyne.App) bool {
 
 	version := GetVersion(app)
 
-	// Check if version is "dev" or "unknown" or empty
 	if version == "dev" || version == "unknown" || version == "" {
 		return false
 	}
 
-	// Check for common non-production markers
 	nonProdMarkers := []string{"-dev", "-alpha", "-beta", "-rc", "-snapshot"}
 	for _, marker := range nonProdMarkers {
 		if contains(version, marker) {
@@ -52,7 +50,6 @@ func IsProduction(app fyne.App) bool {
 	return true
 }
 
-// contains checks if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && findSubstring(s, substr)
 }

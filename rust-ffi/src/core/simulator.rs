@@ -76,13 +76,8 @@ mod macos_native {
 
     /// Drops the modifiers the triggering shortcut left down.
     ///
-    /// A posted event is merged with the modifiers the keyboard is still holding, so simulating
-    /// Cmd+A during ctrl+option+space arrives as ctrl+option+cmd+A and selects nothing — the copy
-    /// then finds an empty selection. Setting the event's own flags does not help, because the
-    /// hardware state is added afterwards.
-    ///
-    /// So the release is asked for and then waited for: the posted key-ups clear a stale flag, and
-    /// the poll covers the half of the state that belongs to the user's fingers.
+    /// Hardware modifier state merges into posted events regardless of the event's own flags, so a
+    /// stray Cmd+A must be stopped by releasing and polling real key state, not by masking flags.
     pub fn release_modifiers() -> Result<()> {
         debug!("Releasing held modifiers");
         for key in MODIFIER_KEYS {

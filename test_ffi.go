@@ -14,7 +14,6 @@ func main() {
 	fmt.Println("Testing Rust FFI Integration...")
 	fmt.Println("================================")
 
-	// Test 1: Clipboard Manager
 	fmt.Println("\n1. Testing Clipboard Manager...")
 	clipboard, err := input.NewFFIClipboardManager()
 	if err != nil {
@@ -23,7 +22,6 @@ func main() {
 	}
 	defer clipboard.Close()
 
-	// Set text
 	testText := "Hello from Rust FFI!"
 	err = clipboard.SetText(testText)
 	if err != nil {
@@ -32,7 +30,6 @@ func main() {
 	}
 	fmt.Println("✓ Set clipboard text")
 
-	// Get text
 	retrievedText, err := clipboard.GetText()
 	if err != nil {
 		fmt.Printf("❌ Failed to get clipboard text: %v\n", err)
@@ -46,7 +43,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Test 2: Key Simulator
 	fmt.Println("\n2. Testing Key Simulator...")
 	simulator, err := input.NewFFIKeySimulator()
 	if err != nil {
@@ -58,7 +54,6 @@ func main() {
 	fmt.Println("✓ Created key simulator")
 	fmt.Println("  (Note: Actual key simulation would require a GUI context)")
 
-	// Test 3: Hotkey Manager
 	fmt.Println("\n3. Testing Hotkey Manager...")
 	hotkeyMgr := input.NewFFIHotkeyManager()
 	if hotkeyMgr == nil {
@@ -67,7 +62,6 @@ func main() {
 	}
 	defer hotkeyMgr.Close()
 
-	// Register a test hotkey
 	err = hotkeyMgr.RegisterHotkey("ctrl+alt+t", "test", func() {
 		fmt.Println("✓ Hotkey triggered!")
 	})
@@ -78,7 +72,7 @@ func main() {
 	}
 	fmt.Println("✓ Registered hotkey 'ctrl+alt+t'")
 
-	// Start listening (but don't actually wait for hotkeys in this test)
+	// Doesn't actually wait to receive a hotkey in this test.
 	err = hotkeyMgr.Start()
 	if err != nil {
 		fmt.Printf("❌ Failed to start hotkey manager: %v\n", err)
@@ -89,7 +83,6 @@ func main() {
 	hotkeyMgr.Stop()
 	fmt.Println("✓ Stopped hotkey manager")
 
-	// Summary
 	fmt.Println("\n================================")
 	fmt.Println("✓ All FFI tests passed!")
 	fmt.Println("\nRust FFI integration is working correctly.")

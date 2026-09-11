@@ -76,8 +76,6 @@ func TestClearRemovesEverything(t *testing.T) {
 	}
 }
 
-// The observer used to fire while Add held the lock, so a handler that read
-// the store back would deadlock. Reading from the handler must work.
 func TestOnChangeCanReadTheStore(t *testing.T) {
 	store := &Store{path: filepath.Join(t.TempDir(), "history.jsonl")}
 

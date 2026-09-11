@@ -11,31 +11,20 @@ name = "encre_ffi"
 crate-type = ["staticlib"]  # Static library for Go CGO
 
 [dependencies]
-# Core dependencies for system input
-# Use rustdesk-org/rdev fork for Linux Wayland support (grab uses evdev, works on X11 and Wayland)
-# This fork is required for macOS compatibility and has Wayland fixes.
-#
-# Pinned to the revision this app has always resolved to. Unpinned, a fresh checkout picks up
-# whatever the branch tip is that day, so CI, a release build and a developer's machine can each
-# carry different input code — the one variable you cannot afford when a shortcut fires on one
-# machine and not another.
+# rustdesk-org fork adds Wayland (evdev-based grab) and macOS support; pinned so CI, release, and dev builds share identical input code.
 rdev = { git = "https://github.com/rustdesk-org/rdev", rev = "23e24dd6b35452a495dae0ae6d99395e9755ab0f" }
 arboard = { version = "3.6", features = ["wayland-data-control"] }  # Clipboard with Wayland support
 enigo = { version = "0.6", features = ["wayland", "x11rb"] }  # Keyboard simulation with Wayland and X11 support
 
-# Error handling
 anyhow = "1.0"
 thiserror = "2.0"
 
-# Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
 
-# Utilities
 once_cell = "1.20"
 parking_lot = "0.12"
 
-# FFI-specific
 libc = "0.2"
 
 # Speech to text: GGUF/ggml engine, capture, resampling and voice detection.
@@ -50,10 +39,10 @@ hound = "3.5"
 cbindgen = "0.29"
 
 [profile.release]
-opt-level = "z"        # Optimize for size
-lto = true             # Link-time optimization
-codegen-units = 1      # Single codegen unit for better optimization
-strip = true           # Strip debug symbols
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
 # The hotkey callbacks wrap themselves in catch_unwind, which `abort` makes dead code: a panic on
 # the listener thread would take the whole app down instead.
 panic = "unwind"

@@ -17,9 +17,8 @@ func encreHandleReopen() {
 	}
 }
 
-// installReopenHandler makes clicking the app's icon bring the window back, which is what macOS
-// expects an already-running app to do. Fyne installs no handler for it, so the method is added to
-// the delegate it already owns.
+// installReopenHandler makes clicking the Dock icon reopen the window. Fyne doesn't wire this up,
+// so the handler is added to the delegate Fyne already owns.
 func installReopenHandler(show func()) {
 	onReopen = show
 	C.EncreInstallReopenHandler()

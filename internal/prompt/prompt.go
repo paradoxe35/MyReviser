@@ -37,9 +37,8 @@ Rules:
 
 Reply with the cleaned text in the same language as the input only. No preamble, no quotes, no explanation, no notes.`
 
-// RenderTranslate substitutes both language names. A prompt that names neither
-// placeholder still gets the instruction appended, so a user who rewrote the
-// template from scratch does not silently lose the language pair.
+// RenderTranslate substitutes both language names. A prompt that names neither placeholder still
+// gets the instruction appended, so a rewritten template doesn't silently lose the language pair.
 func RenderTranslate(template, primary, secondary string) string {
 	if strings.Contains(template, PlaceholderPrimary) || strings.Contains(template, PlaceholderSecondary) {
 		replacer := strings.NewReplacer(

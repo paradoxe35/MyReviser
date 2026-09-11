@@ -22,13 +22,13 @@ type HotkeyCapture struct {
 	stopBtn        *widget.Button
 	clearBtn       *widget.Button
 	container      *fyne.Container
-	displayLabel   *widget.Label    // Label to display saved keybinding
-	entry          *captureEntry    // Entry to capture keyboard events
-	window         fyne.Window      // Reference to parent window for focus
-	onCaptureStart func()           // Callback when capture starts
-	onCaptureStop  func()           // Callback when capture stops
-	onChanged      func()           // Callback when a binding changes
-	siblings       []*HotkeyCapture // Other capture widgets to disable during capture
+	displayLabel   *widget.Label
+	entry          *captureEntry
+	window         fyne.Window
+	onCaptureStart func()
+	onCaptureStop  func()
+	onChanged      func()
+	siblings       []*HotkeyCapture
 
 	isCapturing bool
 	mu          sync.Mutex
@@ -50,17 +50,14 @@ func (e *captureEntry) TypedKey(key *fyne.KeyEvent) {
 	}
 }
 
-// TypedRune prevents normal text input during capture
+// TypedRune prevents normal text input during capture, so pressing F doesn't type "f".
 func (e *captureEntry) TypedRune(r rune) {
-	// Block all typed characters - we only want key events
-	// This prevents 'f' from appearing as text when pressing F key
 }
 
 func (e *captureEntry) CreateRenderer() fyne.WidgetRenderer {
 	e.ExtendBaseWidget(e)
 	renderer := e.Entry.CreateRenderer()
 
-	// Use themed background for better visibility
 	return &themedBackgroundRenderer{
 		WidgetRenderer: renderer,
 		entry:          e,
@@ -73,14 +70,12 @@ type themedBackgroundRenderer struct {
 }
 
 func (r *themedBackgroundRenderer) BackgroundColor() color.Color {
-	// Use theme-appropriate background color for input fields
 	if r.entry.Disabled() {
 		return theme.Color(theme.ColorNameDisabledButton)
 	}
 	return theme.Color(theme.ColorNameInputBackground)
 }
 
-// NewHotkeyCapture creates a new hotkey capture widget
 func NewHotkeyCapture(binding binding.String, placeholder string) *HotkeyCapture {
 	h := &HotkeyCapture{
 		binding:     binding,
@@ -88,50 +83,42 @@ func NewHotkeyCapture(binding binding.String, placeholder string) *HotkeyCapture
 		modifiers:   make(map[fyne.KeyModifier]bool),
 	}
 
-	// Create label to display saved keybinding
 	h.displayLabel = widget.NewLabel(placeholder)
 	h.displayLabel.TextStyle.Bold = true
 	h.displayLabel.TextStyle.Monospace = true
 
-	// Update label when binding changes
 	currentValue, _ := binding.Get()
 	if currentValue != "" {
 		h.displayLabel.SetText(currentValue)
 	}
 
-	// Create entry for keyboard capture (hidden by default)
 	h.entry = &captureEntry{parent: h}
 	h.entry.PlaceHolder = "Press keys in sequence (ESC to cancel, Enter to save)"
 	h.entry.TextStyle.Bold = true
 	h.entry.TextStyle.Monospace = true
-	h.entry.Hide() // Hidden until capture starts
+	h.entry.Hide()
 
-	// Create capture button
 	h.captureBtn = widget.NewButtonWithIcon("Capture", theme.MediaRecordIcon(), func() {
 		h.startCapture()
 	})
 
-	// Create stop button to save current combination (initially hidden)
 	h.stopBtn = widget.NewButtonWithIcon("Save", theme.ConfirmIcon(), func() {
 		h.saveAndStop()
 	})
 	h.stopBtn.Importance = widget.HighImportance
 	h.stopBtn.Hide()
 
-	// Create clear button (hidden by default, will be removed from layout)
 	h.clearBtn = widget.NewButtonWithIcon("", theme.ContentClearIcon(), func() {
 		h.clearHotkey()
 	})
 	h.clearBtn.Importance = widget.LowImportance
-	h.clearBtn.Hide() // Hide clear button entirely
+	h.clearBtn.Hide()
 
-	// Create button container (without clear button)
 	buttonContainer := container.NewHBox(h.captureBtn, h.stopBtn)
 
-	// Create a stack with label on bottom and entry on top (only one visible at a time)
+	// Stack so only the label or the entry is visible at a time.
 	displayStack := container.NewStack(h.displayLabel, h.entry)
 
-	// Create container
 	h.container = container.NewBorder(
 		nil, nil,
 		nil,
@@ -143,12 +130,10 @@ func NewHotkeyCapture(binding binding.String, placeholder string) *HotkeyCapture
 	return h
 }
 
-// CreateRenderer implements fyne.Widget
 func (h *HotkeyCapture) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(h.container)
 }
 
-// startCapture begins listening for key combinations
 func (h *HotkeyCapture) startCapture() {
 	h.mu.Lock()
 	if h.isCapturing {
@@ -158,47 +143,37 @@ func (h *HotkeyCapture) startCapture() {
 	h.isCapturing = true
 	h.mu.Unlock()
 
-	// Disable sibling capture buttons
 	for _, sibling := range h.siblings {
 		sibling.captureBtn.Disable()
 	}
 
-	// Notify that capture is starting (disable global hotkeys)
+	// Global hotkeys must be off while capturing, or they'd fire on the keys being recorded.
 	if h.onCaptureStart != nil {
 		h.onCaptureStart()
 	}
 
-	// Reset pressed keys
 	h.pressedKeys = make(map[fyne.KeyName]bool)
 	h.modifiers = make(map[fyne.KeyModifier]bool)
 
-	// Update UI - hide label, show entry
 	h.displayLabel.Hide()
 	h.entry.SetText("")
 	h.entry.Show()
 	h.captureBtn.Hide()
 	h.stopBtn.Show()
 
-	// Focus the entry widget so it receives keyboard events
 	if h.window != nil {
 		h.window.Canvas().Focus(h.entry)
 	}
 }
 
-// saveAndStop saves the current combination and stops capture
 func (h *HotkeyCapture) saveAndStop() {
-	// Try to save the hotkey
 	success := h.saveHotkey()
 
-	// Always stop capture (restore previous value if save failed)
+	// stopCapture restores the previous value in the label if the save above failed.
 	h.stopCapture()
-
-	// If save failed, the error message was shown briefly in the label
-	// stopCapture will restore the correct previous value
 	_ = success
 }
 
-// stopCapture stops listening for keys (called after successful save or on cancel)
 func (h *HotkeyCapture) stopCapture() {
 	h.mu.Lock()
 	if !h.isCapturing {
@@ -209,22 +184,18 @@ func (h *HotkeyCapture) stopCapture() {
 	h.isCapturing = false
 	h.mu.Unlock()
 
-	// Re-enable sibling capture buttons
 	for _, sibling := range h.siblings {
 		sibling.captureBtn.Enable()
 	}
 
-	// Notify that capture is stopping (re-enable global hotkeys)
 	if h.onCaptureStop != nil {
 		h.onCaptureStop()
 	}
 
-	// Update UI - hide entry, show label
 	h.entry.Hide()
 	h.stopBtn.Hide()
 	h.captureBtn.Show()
 
-	// Restore previous value in label or show placeholder
 	currentValue, _ := h.binding.Get()
 	if currentValue != "" {
 		h.displayLabel.SetText(currentValue)
@@ -234,7 +205,6 @@ func (h *HotkeyCapture) stopCapture() {
 	h.displayLabel.Show()
 }
 
-// handleKeyPress processes key press events from Fyne
 func (h *HotkeyCapture) handleKeyPress(key *fyne.KeyEvent) {
 	h.mu.Lock()
 
@@ -243,21 +213,18 @@ func (h *HotkeyCapture) handleKeyPress(key *fyne.KeyEvent) {
 		return
 	}
 
-	// Handle ESC to cancel
 	if key.Name == fyne.KeyEscape {
 		h.mu.Unlock()
 		h.stopCapture()
 		return
 	}
 
-	// Handle Enter to save
 	if key.Name == fyne.KeyReturn || key.Name == fyne.KeyEnter {
 		h.mu.Unlock()
 		h.saveAndStop()
 		return
 	}
 
-	// Check if this is a modifier key press and track it
 	switch key.Name {
 	case desktop.KeyShiftLeft, desktop.KeyShiftRight:
 		h.modifiers[fyne.KeyModifierShift] = true
@@ -268,9 +235,7 @@ func (h *HotkeyCapture) handleKeyPress(key *fyne.KeyEvent) {
 	case desktop.KeySuperLeft, desktop.KeySuperRight:
 		h.modifiers[fyne.KeyModifierSuper] = true
 	default:
-		// One key, replacing any previous. The listener matches modifiers plus a single key, so a
-		// combination naming two was stored with only the last one meaningful — and a map has no
-		// order, so which one that was varied between saves.
+		// Only one non-modifier key is kept; a saved combo only ever matches modifiers plus one key.
 		if !isModifierKey(key.Name) {
 			h.pressedKeys = map[fyne.KeyName]bool{key.Name: true}
 		}
@@ -280,11 +245,9 @@ func (h *HotkeyCapture) handleKeyPress(key *fyne.KeyEvent) {
 	h.mu.Unlock()
 }
 
-// updateDisplay updates the entry with current pressed keys
 func (h *HotkeyCapture) updateDisplay() {
 	parts := []string{}
 
-	// Add modifiers in standard order FIRST
 	if h.modifiers[fyne.KeyModifierControl] {
 		parts = append(parts, "ctrl")
 	}
@@ -298,7 +261,6 @@ func (h *HotkeyCapture) updateDisplay() {
 		parts = append(parts, getSuperName())
 	}
 
-	// Then add regular keys
 	if len(h.pressedKeys) > 0 {
 		keyNames := make([]string, 0, len(h.pressedKeys))
 		for keyName := range h.pressedKeys {
@@ -314,11 +276,10 @@ func (h *HotkeyCapture) updateDisplay() {
 	}
 }
 
-// saveHotkey saves the captured hotkey combination and returns true if successful
+// saveHotkey returns true if the combination is valid and was saved.
 func (h *HotkeyCapture) saveHotkey() bool {
 	parts := []string{}
 
-	// Add modifiers in standard order
 	if h.modifiers[fyne.KeyModifierControl] {
 		parts = append(parts, "ctrl")
 	}
@@ -332,15 +293,13 @@ func (h *HotkeyCapture) saveHotkey() bool {
 		parts = append(parts, getSuperName())
 	}
 
-	// Add regular keys
 	keyNames := make([]string, 0, len(h.pressedKeys))
 	for keyName := range h.pressedKeys {
 		keyNames = append(keyNames, keyNameToString(keyName))
 	}
 	parts = append(parts, keyNames...)
 
-	// Validate combination: require at least one modifier and either a regular key
-	// or (if allowed) a supported modifier-only combo like Ctrl+Win/Cmd/Super
+	// Requires at least one modifier, plus either a key or (if allowed) a modifier-only combo like Ctrl+Super.
 	valid := false
 	if len(h.modifiers) > 0 {
 		if len(h.pressedKeys) > 0 {
@@ -356,9 +315,7 @@ func (h *HotkeyCapture) saveHotkey() bool {
 
 	hotkeyStr := strings.Join(parts, "+")
 
-	// Check if any sibling has the same keybinding (excluding self)
 	for _, sibling := range h.siblings {
-		// Skip if sibling is self
 		if sibling == h {
 			continue
 		}
@@ -369,7 +326,6 @@ func (h *HotkeyCapture) saveHotkey() bool {
 		}
 	}
 
-	// Save to binding
 	h.binding.Set(hotkeyStr)
 	if h.onChanged != nil {
 		h.onChanged()
@@ -377,7 +333,6 @@ func (h *HotkeyCapture) saveHotkey() bool {
 	return true
 }
 
-// clearHotkey clears the current hotkey
 func (h *HotkeyCapture) clearHotkey() {
 	h.binding.Set("")
 	if h.onChanged != nil {
@@ -386,7 +341,7 @@ func (h *HotkeyCapture) clearHotkey() {
 	h.displayLabel.SetText("Click 'Capture' to set hotkey")
 }
 
-// StopCapture stops capture if currently capturing (public method for external use)
+// StopCapture stops capture if currently capturing.
 func (h *HotkeyCapture) StopCapture() {
 	h.mu.Lock()
 	isCapturing := h.isCapturing
@@ -397,7 +352,7 @@ func (h *HotkeyCapture) StopCapture() {
 	}
 }
 
-// UpdateFromBinding updates the display from the binding value
+// UpdateFromBinding refreshes the label from the binding's current value.
 func (h *HotkeyCapture) UpdateFromBinding() {
 	currentValue, _ := h.binding.Get()
 	if currentValue != "" {
@@ -417,9 +372,6 @@ func (h *HotkeyCapture) SetAllowModifierOnly(allow bool) {
 	h.allowModifierOnly = allow
 }
 
-// Helper functions
-
-// isModifierKey checks if the key is a modifier key
 func isModifierKey(key fyne.KeyName) bool {
 	return key == desktop.KeyShiftLeft || key == desktop.KeyShiftRight ||
 		key == desktop.KeyControlLeft || key == desktop.KeyControlRight ||
@@ -427,17 +379,13 @@ func isModifierKey(key fyne.KeyName) bool {
 		key == desktop.KeySuperLeft || key == desktop.KeySuperRight
 }
 
-// isModifierOnlyAllowed returns true if modifiers contain Ctrl and Super (Win/Cmd/Super)
 func isModifierOnlyAllowed(mods map[fyne.KeyModifier]bool) bool {
 	return mods[fyne.KeyModifierControl] && mods[fyne.KeyModifierSuper]
 }
 
-// keyNameToString converts Fyne KeyName to string representation
 func keyNameToString(key fyne.KeyName) string {
-	// Convert key name to lowercase
 	keyStr := strings.ToLower(string(key))
 
-	// Handle special keys
 	switch key {
 	case fyne.KeySpace:
 		return "space"
@@ -460,7 +408,6 @@ func keyNameToString(key fyne.KeyName) string {
 	case fyne.KeyRight:
 		return "right"
 	default:
-		// For regular keys, just return lowercase version
 		if len(keyStr) == 1 {
 			return keyStr
 		}
@@ -468,7 +415,6 @@ func keyNameToString(key fyne.KeyName) string {
 	}
 }
 
-// getAltName returns platform-specific alt key name
 func getAltName() string {
 	switch runtime.GOOS {
 	case "darwin":
@@ -478,7 +424,6 @@ func getAltName() string {
 	}
 }
 
-// getSuperName returns platform-specific super key name
 func getSuperName() string {
 	switch runtime.GOOS {
 	case "darwin":

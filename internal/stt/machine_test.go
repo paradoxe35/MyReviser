@@ -52,6 +52,8 @@ func TestFitClassification(t *testing.T) {
 		{"fast and small", Model{RealtimeFactor: 20, SizeBytes: 100 << 20}, FitComfortable},
 		{"slow", Model{RealtimeFactor: 1, SizeBytes: 100 << 20}, FitSlow},
 		{"huge", Model{RealtimeFactor: 20, SizeBytes: 7 << 30}, FitTooLarge},
+		// A custom model has no benchmark; guessing "slow" would misstate what the catalog knows.
+		{"unmeasured", Model{SizeBytes: 100 << 20}, FitUnknown},
 	}
 
 	for _, c := range cases {

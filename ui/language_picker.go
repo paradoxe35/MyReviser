@@ -51,8 +51,7 @@ func (p *LanguagePicker) SetCode(code string) {
 	p.Refresh()
 }
 
-// SetExcludedCode removes the other side's selected language from this
-// picker's choices, so a translation pair cannot be configured identically.
+// SetExcludedCode removes code from this picker's choices, so a translation pair can't match.
 func (p *LanguagePicker) SetExcludedCode(code string) {
 	p.excludedCode = code
 	if strings.EqualFold(p.code, code) {

@@ -14,7 +14,6 @@ import (
 )
 
 func (w *MainWindow) createSystemSection() fyne.CanvasObject {
-	// Theme selection
 	themeLabel := widget.NewLabel("Theme:")
 	themeLabel.TextStyle.Bold = true
 
@@ -23,29 +22,23 @@ func (w *MainWindow) createSystemSection() fyne.CanvasObject {
 		w.applyTheme(value)
 	})
 
-	// Set initial selection
 	currentTheme, _ := w.themeBinding.Get()
 	themeSelect.SetSelected(currentTheme)
 
-	// Theme description
 	themeDesc := widget.NewLabel("Auto: Follow system theme\nLight: Always use light theme\nDark: Always use dark theme")
 	themeDesc.Wrapping = fyne.TextWrapWord
 
-	// Start Minimized / Start on Login checkboxes. Bind installs its own
-	// OnChanged that writes the binding, so dirty tracking goes on the binding
-	// itself: a callback on the check would be overwritten.
+	// Bind installs its own OnChanged, so a callback on the check would get overwritten; dirty tracking hooks the binding instead.
 	w.startMinimizedCheck = widget.NewCheck("Start minimized to system tray", nil)
 	w.startMinimizedCheck.Bind(w.startMinimizedBinding)
 
 	w.startOnLoginCheck = widget.NewCheck("Start on login", nil)
 	w.startOnLoginCheck.Bind(w.startOnLoginBinding)
 
-	// Version display (only show for production builds)
 	var versionContainer *fyne.Container
 	if version.IsProduction(w.app) {
 		versionLabel := widget.NewLabel(fmt.Sprintf("Version: %s", version.GetVersion(w.app)))
 		versionLabel.TextStyle.Italic = true
-		// Use a subtle gray color for the version
 		versionLabel.Importance = widget.LowImportance
 
 		versionContainer = container.NewVBox(
@@ -60,7 +53,6 @@ func (w *MainWindow) createSystemSection() fyne.CanvasObject {
 		container.NewPadded(container.NewVBox(w.startMinimizedCheck, w.startOnLoginCheck)),
 	}
 
-	// Add version if production build
 	if versionContainer != nil {
 		formItems = append(formItems, versionContainer)
 	}
@@ -99,7 +91,6 @@ func (w *MainWindow) applyAutoStartSetting(enabled bool) {
 	}
 }
 
-// restartApplication restarts the application
 func (w *MainWindow) restartApplication() {
 	logger.Info("User requested application restart")
 

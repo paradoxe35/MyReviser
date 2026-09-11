@@ -112,9 +112,8 @@ impl Modifiers {
 
 /// The only keys a binding can name, and the names it uses for them.
 ///
-/// One table for both directions: a name the recorder can produce but the listener cannot match is
-/// a binding that saves cleanly and then never fires, which is indistinguishable from a refused
-/// listener. Registering an unknown name fails instead.
+/// One table for both directions, so a name the recorder emits but the listener can't match fails
+/// at registration instead of saving as a binding that silently never fires.
 const KEYS: &[(Key, &str)] = &[
     (Key::KeyA, "a"),
     (Key::KeyB, "b"),
@@ -195,8 +194,7 @@ fn canonical_key_name(name: &str) -> Option<&'static str> {
 }
 
 /// A binding is modifiers, then optionally one key: `ctrl+alt+space`, or `ctrl+cmd` on its own.
-///
-/// A modifier is required. Without one the binding would fire on ordinary typing.
+/// A modifier is required, or the binding would fire on ordinary typing.
 fn parse_binding(binding: &str) -> Result<(Modifiers, Option<&'static str>), String> {
     let parts: Vec<&str> = binding
         .split('+')
@@ -260,8 +258,7 @@ fn fire(binding: &HotkeyBinding, down: bool) {
         binding.binding,
         binding.action
     );
-    // Lent, not handed over: `into_raw` leaked one allocation per key press. The host copies
-    // during the call.
+    // Lent via `as_ptr`, not transferred; the host must copy the string during the call.
     let Ok(action) = CString::new(binding.action.as_str()) else {
         return;
     };
@@ -277,11 +274,8 @@ fn fire(binding: &HotkeyBinding, down: bool) {
 
 /// What the listener remembers between events.
 ///
-/// A binding with a key fires the moment that key goes down. A modifier-only binding cannot: at
-/// the moment `ctrl+cmd` is complete the user may still be reaching for the space bar, and firing
-/// there is what made `ctrl+cmd+space` revise the selection as well as open the emoji picker. So a
-/// modifier-only binding fires when the combination is released, and only if nothing else was
-/// pressed while it was held.
+/// A modifier-only binding fires on release, not on press, and only if nothing else was pressed
+/// while it was held — firing early would trigger `ctrl+cmd` before `ctrl+cmd+space` completes.
 #[derive(Default)]
 struct ListenerState {
     held: Modifiers,
@@ -417,8 +411,8 @@ pub struct SimpleHotkeyManager {
     bindings: Arc<Mutex<Vec<HotkeyBinding>>>,
     listener_handle: Option<thread::JoinHandle<()>>,
     active: Arc<Mutex<bool>>,
-    /// Why the listener never started. It fails on its own thread, and the message would otherwise
-    /// go to stdout — which a macOS .app bundle discards, leaving a dead shortcut and no trace.
+    /// Why the listener never started. It fails on its own thread, and a macOS .app bundle
+    /// discards stdout, so without this the shortcut just goes dead with no trace.
     listen_error: Arc<Mutex<Option<String>>>,
 }
 
@@ -484,10 +478,8 @@ impl SimpleHotkeyManager {
         *active = true;
         drop(active);
 
-        // rdev offers no way to stop a listener, so `stop` only closes the gate and the thread
-        // stays. Spawning another on resume would leave two of them delivering the same key press,
-        // and every action would run twice. Suspending and resuming is ordinary — it happens every
-        // time a shortcut is recorded.
+        // rdev has no way to stop a listener, so `stop` only closes the gate. Resume must reuse
+        // this thread rather than spawn a second one, or every action would fire twice.
         if self.listener_handle.is_some() {
             return Ok(());
         }
@@ -862,8 +854,8 @@ mod tests {
         assert_eq!(actions, vec!["revise_selection"]);
     }
 
-    /// The bug this rule exists for: ctrl+cmd+space opens the macOS emoji picker, and used to
-    /// revise the selection on the way there.
+    /// Regression test: ctrl+cmd+space opens the macOS emoji picker, so the modifier-only binding
+    /// must not fire on the way there.
     #[test]
     fn ctrl_cmd_space_leaves_the_selection_alone() {
         let actions = fired(
@@ -1136,8 +1128,8 @@ mod tests {
         }
     }
 
-    /// The names `HotkeyRecorder.keyName` can produce. A name the recorder emits and the listener
-    /// cannot match saves cleanly and then never fires, which looks exactly like a refused listener.
+    /// Every name `HotkeyRecorder.keyName` can produce must be one the listener recognizes, or the
+    /// binding saves cleanly and then silently never fires.
     #[test]
     fn every_name_the_recorder_can_produce_is_a_key_the_listener_knows() {
         let recorded = [
@@ -1172,9 +1164,8 @@ mod tests {
         }
     }
 
-    /// Suspending and resuming happens every time a shortcut is recorded. rdev's listener cannot be
-    /// stopped, so resuming used to spawn a second one beside the first — both delivering the same
-    /// key press, and every action running twice.
+    /// rdev's listener can't be stopped, so resume must reuse this thread, not spawn a second one
+    /// that would double-fire every action.
     #[test]
     fn resuming_reuses_the_listener_thread() {
         let mut manager = SimpleHotkeyManager::new();

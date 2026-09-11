@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
-#
-# Build the Rust FFI static library for one target triple.
-#
-#   scripts/build-rust-ffi.sh [target-triple]
-#
-# With no triple it builds for the host. RUSTFLAGS and the rest of the
-# environment are passed through to cargo untouched.
+# Build the Rust FFI static library. Usage: build-rust-ffi.sh [target-triple]
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -20,14 +14,8 @@ else
   out_dir="target/release"
 fi
 
-# ggml's CMakeLists clears CMAKE_STATIC_LIBRARY_PREFIX on WIN32 ("remove the lib
-# prefix on win32 mingw"), so transcribe-cpp-sys installs ggml.a / ggml-cpu.a /
-# ggml-base.a while its link manifest still names them ggml, ggml-cpu and
-# ggml-base. rustc targeting *-windows-gnu only ever looks for libggml.a, so a
-# cold build dies with "could not find native static library `ggml`" with the
-# archive sitting right there in the search path. Give each archive the name
-# rustc searches for; libtranscribe.a is built outside ggml's scope and already
-# has it.
+# ggml clears CMAKE_STATIC_LIBRARY_PREFIX on WIN32, so it installs ggml.a while
+# its link manifest says "ggml" and rustc looks for libggml.a.
 normalize_native_archives() {
   shopt -s nullglob
   local archive name dir
@@ -46,9 +34,7 @@ if cargo "${cargo_args[@]}"; then
   exit 0
 fi
 
-# The native build itself succeeded above (cmake installed the archives); only
-# the Rust link line could not resolve them. Rename and re-run: the second pass
-# reuses the cached build-script output, so nothing native is rebuilt.
+# The retry reuses the cached build-script output, so nothing native is rebuilt.
 echo "Rust build failed; normalizing native archive names and retrying..."
 normalize_native_archives
 cargo "${cargo_args[@]}"

@@ -15,12 +15,9 @@ on:
 env:
   GO_VERSION: "1.24"
   RUST_VERSION: "stable"
-  # ggml decides its SIMD level from whether CMake thinks it is cross compiling,
-  # which differs per job: the native legs (Linux, macOS arm64) compile
-  # -march=native and SIGILL on any user CPU older than the runner's, while the
-  # cross legs (Windows, macOS amd64) disable every tier and transcribe several
-  # times slower than they need to. Pin one baseline for every artifact instead.
-  # AVX2 means x86 machines from ~2013 on; the flags are inert on arm64.
+  # Left to itself ggml compiles -march=native on the native jobs and no SIMD at
+  # all on the cross ones. Pin an AVX2 baseline (x86 from ~2013) for every
+  # artifact; inert on arm64.
   TRANSCRIBE_CMAKE_ARGS: >-
     -DGGML_NATIVE=OFF
     -DGGML_SSE42=ON

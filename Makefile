@@ -75,8 +75,6 @@ RUST_FFI_DIR := rust-ffi
 LIB_DIR := lib
 BIN_DIR := bin
 
-# Every Rust build goes through this wrapper: it takes the target triple and
-# works around ggml's unprefixed Windows archives (see the script for details).
 RUST_BUILD := bash scripts/build-rust-ffi.sh
 
 # ============================================================================

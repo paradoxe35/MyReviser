@@ -19,7 +19,6 @@ type GeminiProvider struct {
 	client      *http.Client
 }
 
-// NewGeminiProvider creates a new Google Gemini provider
 func NewGeminiProvider(apiKey, baseURL, model string, temperature float64) *GeminiProvider {
 	if baseURL == "" {
 		baseURL = "https://generativelanguage.googleapis.com"
@@ -48,24 +47,20 @@ type GenerationConfig struct {
 	Temperature    float64         `json:"temperature"`
 }
 
-// GeminiRequest represents the request structure for Gemini API
 type GeminiRequest struct {
 	Contents         []GeminiContent  `json:"contents"`
 	GenerationConfig GenerationConfig `json:"generationConfig"`
 }
 
-// GeminiContent represents content in the Gemini API
 type GeminiContent struct {
 	Parts []GeminiPart `json:"parts"`
 	Role  string       `json:"role,omitempty"`
 }
 
-// GeminiPart represents a part of content
 type GeminiPart struct {
 	Text string `json:"text"`
 }
 
-// GeminiResponse represents the response from Gemini API
 type GeminiResponse struct {
 	Candidates []struct {
 		Content GeminiContent `json:"content"`
@@ -77,13 +72,11 @@ type GeminiResponse struct {
 	} `json:"error,omitempty"`
 }
 
-// ReviseText sends text to Gemini for revision
 func (p *GeminiProvider) ReviseText(ctx context.Context, text, systemPrompt string) (string, error) {
 	if err := p.ValidateConfig(); err != nil {
 		return "", err
 	}
 
-	// Combine system prompt and user text for Gemini
 	fullText := fmt.Sprintf("%s\n\n%s", systemPrompt, text)
 
 	contents := []GeminiContent{
@@ -132,7 +125,6 @@ func (p *GeminiProvider) send(ctx context.Context, requestBody GeminiRequest) (s
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Handle non-2xx status codes
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", ParseAPIError(resp.StatusCode, body, "gemini")
 	}
@@ -150,7 +142,6 @@ func (p *GeminiProvider) send(ctx context.Context, requestBody GeminiRequest) (s
 		return "", fmt.Errorf("no response from API")
 	}
 
-	// Extract text from response
 	var result strings.Builder
 	for _, part := range response.Candidates[0].Content.Parts {
 		result.WriteString(part.Text)
@@ -159,7 +150,6 @@ func (p *GeminiProvider) send(ctx context.Context, requestBody GeminiRequest) (s
 	return result.String(), nil
 }
 
-// ValidateConfig validates the provider configuration
 func (p *GeminiProvider) ValidateConfig() error {
 	if p.APIKey == "" {
 		return fmt.Errorf("gemini API key is required")
@@ -170,17 +160,14 @@ func (p *GeminiProvider) ValidateConfig() error {
 	return nil
 }
 
-// GetName returns the provider name
 func (p *GeminiProvider) GetName() string {
 	return "gemini"
 }
 
-// GetModel returns the model being used
 func (p *GeminiProvider) GetModel() string {
 	return p.Model
 }
 
-// GetTemperature returns the temperature being used
 func (p *GeminiProvider) GetTemperature() float64 {
 	return p.Temperature
 }

@@ -18,15 +18,12 @@ import (
 )
 
 func main() {
-	// Initialize logger first
 	if err := logger.Init(); err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 
-	// Ensure ~/.encre created
 	utils.EnsureAppHomeDir()
 
-	// Check for single instance
 	lockPath := utils.AppHomeDir("encre.lock")
 	portPath := utils.AppHomeDir("instance.port")
 	lockFile, err := singleinstance.CreateLockFile(lockPath)
@@ -43,14 +40,12 @@ func main() {
 	handover := platform.NewHandover(portPath)
 	defer handover.Close()
 
-	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		logger.Error("Failed to load configuration", "error", err)
 		cfg = config.Default()
 	}
 
-	// Create Fyne application
 	myApp := app.NewWithID(config.APP_ID)
 	myApp.SetIcon(resourceIconPng)
 
@@ -58,7 +53,6 @@ func main() {
 		"version", version.GetVersion(myApp),
 		"build", version.GetBuildNumber(myApp))
 
-	// Create and start the application
 	application, err := NewApplication(myApp, cfg)
 	if err != nil {
 		logger.Error("Failed to create application", "error", err)
@@ -67,7 +61,6 @@ func main() {
 
 	handover.Serve(application.ShowWindow)
 
-	// Run the application
 	if err := application.Start(); err != nil {
 		logger.Error("Failed to start application", "error", err)
 		os.Exit(1)

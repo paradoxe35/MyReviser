@@ -27,8 +27,7 @@ func digest(body []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// serve honours Range so resume can be exercised. ignoreRange reproduces a
-// server that answers 200 with the whole body regardless.
+// serve honours Range so resume can be exercised; ignoreRange reproduces a server that always answers 200.
 func serve(t *testing.T, body []byte, ignoreRange bool) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -133,8 +132,7 @@ func TestDownloadResumesFromPartial(t *testing.T) {
 	}
 }
 
-// A server that ignores Range replies 200 from byte zero. Appending would
-// duplicate the prefix, so the partial must be truncated first.
+// A server that ignores Range replies 200 from byte zero; appending would duplicate the prefix.
 func TestDownloadHandlesIgnoredRange(t *testing.T) {
 	body := payload(32 * 1024)
 	server := serve(t, body, true)
@@ -189,8 +187,7 @@ func TestDownloadRejectsChecksumMismatch(t *testing.T) {
 	}
 }
 
-// A full-size partial needs verifying, not another request: asking from EOF
-// returns 416 and would loop.
+// A full-size partial needs verifying, not another request: asking from EOF returns 416 and loops.
 func TestDownloadVerifiesCompletePartial(t *testing.T) {
 	body := payload(4096)
 	server := serve(t, body, false)

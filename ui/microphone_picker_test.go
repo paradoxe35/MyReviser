@@ -46,8 +46,7 @@ func TestPickerKeepsSavedDevice(t *testing.T) {
 	}
 }
 
-// Unplugging a microphone must not silently reassign the setting to another
-// device: the choice stays visible and selected.
+// Unplugging a microphone must not silently reassign the setting; the choice stays visible and selected.
 func TestPickerKeepsAnUnpluggedDeviceListed(t *testing.T) {
 	p := newMicrophonePicker("Headset", lister(
 		input.Device{Name: "Built-in", IsDefault: true},

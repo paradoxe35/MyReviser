@@ -3,14 +3,11 @@
 package input
 
 /*
-// Speech pulls in ggml, which is C++, and cpal, which talks to the platform's
-// audio API. cgo unions LDFLAGS across the package, so they belong here rather
-// than repeated in every file.
+// Speech pulls in ggml (C++) and cpal (platform audio API); cgo unions LDFLAGS across the
+// package, so they live here instead of being repeated per file.
 #cgo linux LDFLAGS: -lstdc++ -lasound
-// Accelerate is ggml's, not cpal's: ggml-cpu compiles with GGML_USE_ACCELERATE on
-// Apple and calls vDSP directly. The library's own link manifest only lists the
-// framework when the BLAS backend is on, which this build forces off, so nothing
-// upstream of here asks for it and the final link would die on _vDSP_vadd.
+// Accelerate: ggml-cpu calls vDSP directly under GGML_USE_ACCELERATE, but its own link
+// manifest only requests the framework when BLAS is on, which this build disables.
 #cgo darwin LDFLAGS: -lc++ -framework Accelerate -framework AudioToolbox -framework CoreAudio -framework AudioUnit
 #cgo windows LDFLAGS: -lstdc++ -lole32 -lavrt
 
@@ -47,8 +44,7 @@ func NewFFISpeech() (*FFISpeech, error) {
 	return &FFISpeech{handle: handle}, nil
 }
 
-// OnLevel receives microphone level while recording. It is called from a
-// background thread, and replaces any previous handler.
+// OnLevel receives microphone level from a background thread while recording; replaces any previous handler.
 func OnLevel(handler func(float32)) {
 	levelMu.Lock()
 	defer levelMu.Unlock()
@@ -98,8 +94,8 @@ func (s *FFISpeech) Start() error {
 	return nil
 }
 
-// Stop ends recording and returns the transcript. It blocks for the length of
-// the transcription, so callers should not run it on the UI goroutine.
+// Stop ends recording and returns the transcript; blocks for the length of transcription, so
+// callers should not run it on the UI goroutine.
 func (s *FFISpeech) Stop() (string, error) {
 	s.mu.Lock()
 	text := C.encre_stt_stop(s.handle)
@@ -114,8 +110,7 @@ func (s *FFISpeech) Cancel() {
 	C.encre_stt_cancel(s.handle)
 }
 
-// TranscribeFile reads a 16 kHz mono WAV, for verifying a model without a
-// microphone.
+// TranscribeFile reads a 16 kHz mono WAV, for verifying a model without a microphone.
 func (s *FFISpeech) TranscribeFile(path string) (string, error) {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
@@ -145,8 +140,7 @@ func takeString(text *C.char) (string, error) {
 	return C.GoString(text), nil
 }
 
-// SetDevice chooses the capture device by name. An empty name means the system
-// default. It applies to the next recording, not one in progress.
+// SetDevice chooses the capture device by name (empty means system default); applies to the next recording, not one in progress.
 func (s *FFISpeech) SetDevice(name string) error {
 	var cName *C.char
 	if name != "" {
@@ -164,8 +158,7 @@ func (s *FFISpeech) SetDevice(name string) error {
 	return nil
 }
 
-// InputDevices lists microphones. An empty result means none were found, not
-// that enumeration failed.
+// InputDevices lists microphones; an empty result means none were found, not that enumeration failed.
 func InputDevices() []Device {
 	listed := C.encre_stt_devices()
 	if listed == nil {

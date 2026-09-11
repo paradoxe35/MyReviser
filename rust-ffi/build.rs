@@ -7,7 +7,6 @@ fn main() {
     let output_file = crate_path.join("bindings.h");
     let config_file = crate_path.join("cbindgen.toml");
 
-    // Use cbindgen.toml configuration file if it exists
     let builder = if config_file.exists() {
         cbindgen::Builder::new().with_crate(&crate_dir).with_config(
             cbindgen::Config::from_file(&config_file).expect("Failed to read cbindgen.toml"),

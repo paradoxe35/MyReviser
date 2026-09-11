@@ -33,8 +33,7 @@ func (w *MainWindow) createSpeechSection() fyne.CanvasObject {
 		})
 	w.speechEngine.SetSelected(engineLabel(w.config.Speech.Engine))
 
-	// Options are set once and rarely revisited; the model list is what the
-	// screen is for. A dialog keeps the list full height.
+	// Options live in a dialog so the model list, the point of this screen, keeps full height.
 	options := widget.NewButtonWithIcon("", theme.SettingsIcon(), w.showSpeechOptions)
 	options.Importance = widget.LowImportance
 
@@ -146,8 +145,7 @@ func (w *MainWindow) remoteSpeechPane() *fyne.Container {
 	))
 }
 
-// applyPreset fills the endpoint for known services and leaves it editable only
-// for a custom one, so a typo cannot silently break a working provider.
+// applyPreset locks the endpoint for known services, editable only for custom, so a typo can't break a working provider.
 func (w *MainWindow) applyPreset(name string) {
 	preset, ok := stt.PresetByName(name)
 	if !ok {
@@ -168,8 +166,7 @@ func (w *MainWindow) applyPreset(name string) {
 	}
 }
 
-// Built once so Save reads the same widgets whether or not the dialog was
-// ever opened.
+// buildSpeechOptions runs once so Save reads the same widgets whether or not the dialog was ever opened.
 func (w *MainWindow) buildSpeechOptions() {
 	speech := w.config.Speech
 

@@ -26,12 +26,10 @@ import (
 	"github.com/paradoxe35/encre/internal/logger"
 )
 
-// FFIKeySimulator wraps the Rust FFI key simulator
 type FFIKeySimulator struct {
 	handle C.encre_SimulatorHandle
 }
 
-// NewFFIKeySimulator creates a new FFI-based key simulator
 func NewFFIKeySimulator() (*FFIKeySimulator, error) {
 	handle := C.encre_simulator_new()
 	if handle == nil {
@@ -41,7 +39,7 @@ func NewFFIKeySimulator() (*FFIKeySimulator, error) {
 	return &FFIKeySimulator{handle: handle}, nil
 }
 
-// SelectAll simulates the select all keyboard shortcut (Ctrl+A / Cmd+A)
+// SelectAll simulates Ctrl+A / Cmd+A.
 func (s *FFIKeySimulator) SelectAll() error {
 	if s.handle == nil {
 		return fmt.Errorf("key simulator not initialized")
@@ -56,7 +54,7 @@ func (s *FFIKeySimulator) SelectAll() error {
 	return nil
 }
 
-// Copy simulates the copy keyboard shortcut (Ctrl+C / Cmd+C)
+// Copy simulates Ctrl+C / Cmd+C.
 func (s *FFIKeySimulator) Copy() error {
 	if s.handle == nil {
 		return fmt.Errorf("key simulator not initialized")
@@ -71,7 +69,7 @@ func (s *FFIKeySimulator) Copy() error {
 	return nil
 }
 
-// Paste simulates the paste keyboard shortcut (Ctrl+V / Cmd+V)
+// Paste simulates Ctrl+V / Cmd+V.
 func (s *FFIKeySimulator) Paste() error {
 	if s.handle == nil {
 		return fmt.Errorf("key simulator not initialized")
@@ -86,11 +84,9 @@ func (s *FFIKeySimulator) Paste() error {
 	return nil
 }
 
-// ReleaseModifiers drops modifiers still held from the triggering hotkey.
-//
-// Without it, simulating Ctrl+A while Alt is still down sends Ctrl+Alt+A and selects nothing.
-// On macOS this also waits for the keyboard to agree the keys are up, because a posted event is
-// merged with the modifiers still being held.
+// ReleaseModifiers drops modifiers still held from the triggering hotkey; otherwise simulating
+// Ctrl+A while Alt is down sends Ctrl+Alt+A. On macOS it also waits for the keyboard to confirm
+// the keys are up, since a posted event merges with modifiers still held.
 func (s *FFIKeySimulator) ReleaseModifiers() error {
 	if s.handle == nil {
 		return fmt.Errorf("key simulator not initialized")
@@ -104,7 +100,6 @@ func (s *FFIKeySimulator) ReleaseModifiers() error {
 	return nil
 }
 
-// Close frees the key simulator resources
 func (s *FFIKeySimulator) Close() {
 	if s.handle != nil {
 		C.encre_simulator_free(s.handle)
@@ -112,10 +107,6 @@ func (s *FFIKeySimulator) Close() {
 	}
 }
 
-// FFI-based implementations of simulator functions
-// These will replace the robotgo-based functions
-
-// FFISimulateSelectAll simulates the select all keyboard shortcut
 func FFISimulateSelectAll() error {
 	sim, err := NewFFIKeySimulator()
 	if err != nil {
@@ -126,7 +117,6 @@ func FFISimulateSelectAll() error {
 	return sim.SelectAll()
 }
 
-// FFISimulateCopy simulates the copy keyboard shortcut
 func FFISimulateCopy() error {
 	sim, err := NewFFIKeySimulator()
 	if err != nil {
@@ -137,7 +127,6 @@ func FFISimulateCopy() error {
 	return sim.Copy()
 }
 
-// FFISimulatePaste simulates the paste keyboard shortcut
 func FFISimulatePaste() error {
 	sim, err := NewFFIKeySimulator()
 	if err != nil {

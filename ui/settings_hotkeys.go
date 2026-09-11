@@ -7,8 +7,7 @@ import (
 	"github.com/paradoxe35/encre/internal/config"
 )
 
-// Every binding in one place. What an action does is configured under Actions;
-// this screen answers only "which keys".
+// This screen only binds keys; what an action does is configured under Actions.
 func (w *MainWindow) createHotkeysSection() fyne.CanvasObject {
 	w.captures = make(map[config.ActionKind]*HotkeyCapture, len(config.ActionOrder))
 	w.enables = make(map[config.ActionKind]*widget.Check, len(config.ActionOrder))
@@ -36,8 +35,7 @@ func (w *MainWindow) createHotkeysSection() fyne.CanvasObject {
 		)
 	}
 
-	// Each capture must know the others so only one records at a time and
-	// duplicate bindings are refused.
+	// Siblings let each capture refuse duplicate bindings and ensure only one records at a time.
 	for _, capture := range captures {
 		capture.SetSiblings(others(captures, capture)...)
 	}

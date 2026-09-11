@@ -20,8 +20,7 @@ import (
 
 const (
 	partialSuffix = ".partial"
-	// A download that delivers nothing for this long is treated as dead. A
-	// stalled TCP connection can otherwise hang without ever erroring.
+	// A download delivering nothing for this long is treated as dead; a stalled TCP connection can hang without erroring.
 	stallTimeout  = 60 * time.Second
 	progressEvery = 200 * time.Millisecond
 )
@@ -62,8 +61,7 @@ type Store struct {
 func NewStore() *Store {
 	return &Store{
 		dir: utils.AppHomeDir("models"),
-		// No overall timeout: a large model on a slow line is not an error.
-		// The stall watchdog handles genuinely dead transfers.
+		// No overall timeout: a large model on a slow line isn't an error; the stall watchdog handles dead transfers.
 		client:   &http.Client{},
 		urlFor:   Model.DownloadURL,
 		inflight: make(map[string]context.CancelFunc),
@@ -162,8 +160,7 @@ func (s *Store) fetch(ctx context.Context, model Model, partial string, report f
 		resumeFrom = info.Size()
 	}
 
-	// A partial already at full size needs verifying, not re-fetching. Without
-	// this a mismatched checksum would loop: request from EOF, get 416, retry.
+	// A partial already at full size needs verifying, not re-fetching, or a bad checksum loops forever.
 	if resumeFrom == model.SizeBytes {
 		return nil
 	}
@@ -229,8 +226,7 @@ func (s *Store) copy(ctx context.Context, dst io.Writer, src io.Reader,
 
 		n, readErr := src.Read(buf)
 		if n > 0 {
-			// Refuse a server sending more than it promised rather than
-			// growing the file past its declared size.
+			// Refuse a server sending more than it promised, rather than growing the file past its declared size.
 			if model.SizeBytes > 0 && written+int64(n) > model.SizeBytes {
 				n = int(model.SizeBytes - written)
 			}

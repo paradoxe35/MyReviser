@@ -25,14 +25,12 @@ func (a *autoStart) Enable() error {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 
-	// Resolve symlinks to get the real executable path
 	executable, err = filepath.EvalSymlinks(executable)
 	if err != nil {
 		logger.Warn("Failed to resolve symlinks", "error", err)
 	}
 
-	// Add quotes around path to handle spaces correctly
-	// This prevents the "Unquoted Service Path" vulnerability
+	// Quoted to avoid the "Unquoted Service Path" vulnerability on paths containing spaces.
 	quotedPath := fmt.Sprintf(`"%s"`, executable)
 
 	key, err := registry.OpenKey(registry.CURRENT_USER, registryKey, registry.SET_VALUE)

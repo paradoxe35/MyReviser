@@ -47,12 +47,10 @@ const (
 	clipboardPasteSettle  = 220 * time.Millisecond
 )
 
-// FFIClipboardManager wraps the Rust FFI clipboard manager
 type FFIClipboardManager struct {
 	handle C.encre_ClipboardHandle
 }
 
-// NewFFIClipboardManager creates a new FFI-based clipboard manager
 func NewFFIClipboardManager() (*FFIClipboardManager, error) {
 	handle := C.encre_clipboard_new()
 	if handle == nil {
@@ -62,8 +60,7 @@ func NewFFIClipboardManager() (*FFIClipboardManager, error) {
 	return &FFIClipboardManager{handle: handle}, nil
 }
 
-// text reads the clipboard. The second result is false when it holds no text — which covers both
-// empty and "holds an image", neither of which is a failure.
+// text reads the clipboard; ok is false when it holds no text (empty or an image, not a failure).
 func (c *FFIClipboardManager) text() (string, bool) {
 	if c.handle == nil {
 		return "", false
@@ -79,7 +76,6 @@ func (c *FFIClipboardManager) text() (string, bool) {
 	return text, text != ""
 }
 
-// GetText gets text from clipboard
 func (c *FFIClipboardManager) GetText() (string, error) {
 	if c.handle == nil {
 		return "", fmt.Errorf("clipboard manager not initialized")
@@ -111,11 +107,8 @@ func (c *FFIClipboardManager) HasText() bool {
 	return C.encre_clipboard_has_text(c.handle) == 1
 }
 
-// await polls until read answers, or the deadline passes.
-//
-// Deliberately polled against a real clock rather than slept: a fast application finishes in a few
-// milliseconds and a slow one gets the time it needs, where one fixed sleep has to be wrong in one
-// direction or the other.
+// await polls until read answers or the deadline passes, rather than a fixed sleep that's
+// wrong for either a fast or a slow application.
 func await(read func() (string, bool)) (string, bool) {
 	deadline := time.Now().Add(clipboardCopyTimeout)
 	for {
@@ -129,7 +122,6 @@ func await(read func() (string, bool)) (string, bool) {
 	}
 }
 
-// SetText sets text to clipboard
 func (c *FFIClipboardManager) SetText(text string) error {
 	if c.handle == nil {
 		return fmt.Errorf("clipboard manager not initialized")
@@ -146,7 +138,6 @@ func (c *FFIClipboardManager) SetText(text string) error {
 	return nil
 }
 
-// SaveCurrent saves the current clipboard content
 func (c *FFIClipboardManager) SaveCurrent() error {
 	if c.handle == nil {
 		return fmt.Errorf("clipboard manager not initialized")
@@ -160,7 +151,6 @@ func (c *FFIClipboardManager) SaveCurrent() error {
 	return nil
 }
 
-// Restore restores the saved clipboard content
 func (c *FFIClipboardManager) Restore() error {
 	if c.handle == nil {
 		return fmt.Errorf("clipboard manager not initialized")
@@ -174,7 +164,6 @@ func (c *FFIClipboardManager) Restore() error {
 	return nil
 }
 
-// Close frees the clipboard manager resources
 func (c *FFIClipboardManager) Close() {
 	if c.handle != nil {
 		C.encre_clipboard_free(c.handle)
@@ -192,12 +181,8 @@ func (c *FFIClipboardManager) CaptureAll() (string, CaptureOutcome, error) {
 	return c.capture(true)
 }
 
-// capture borrows the clipboard to read the user's selection.
-//
-// The clipboard is cleared before the copy, so "the copy landed" becomes observable. Sleeping and
-// then reading meant a failed copy returned the previous clipboard contents, which were then
-// revised and pasted over the user's selection — their text replaced by a correction of something
-// else entirely. No sleep length fixes that, because nothing is being checked.
+// capture borrows the clipboard to read the user's selection. It clears the clipboard before
+// copying so a failed copy is observable, instead of silently reusing stale contents.
 func (c *FFIClipboardManager) capture(selectAllFirst bool) (string, CaptureOutcome, error) {
 	if err := c.SaveCurrent(); err != nil {
 		return "", CaptureCopyFailed, fmt.Errorf("could not read the clipboard: %w", err)
@@ -236,8 +221,7 @@ func (c *FFIClipboardManager) capture(selectAllFirst bool) (string, CaptureOutco
 	copied, ok := await(c.text)
 	if !ok {
 		c.Restore()
-		// An empty selection and a refused copy are indistinguishable from here, and telling the
-		// user the honest ambiguity beats guessing.
+		// An empty selection and a refused copy are indistinguishable from here.
 		if selectAllFirst {
 			return "", CaptureCopyFailed, nil
 		}
@@ -260,8 +244,7 @@ func (c *FFIClipboardManager) ReplaceSelectedText(newText string) error {
 		return fmt.Errorf("failed to set clipboard text: %w", err)
 	}
 
-	// Confirm the clipboard really holds our text before pressing paste, or a slow write means
-	// pasting whatever was there before.
+	// Confirm the clipboard really holds our text before pasting, or a slow write pastes stale contents.
 	if _, ok := await(func() (string, bool) {
 		text, ok := c.text()
 		return text, ok && text == newText
@@ -286,8 +269,7 @@ func (c *FFIClipboardManager) ReplaceSelectedText(newText string) error {
 		return fmt.Errorf("failed to simulate paste: %w", err)
 	}
 
-	// The paste is asynchronous: restoring immediately can hand the target application the old
-	// contents, which is how a correction silently turns into whatever was copied before.
+	// The paste is asynchronous; restoring immediately can hand the target application the old contents.
 	time.Sleep(clipboardPasteSettle)
 	c.Restore()
 
@@ -301,7 +283,6 @@ func (c *FFIClipboardManager) Abandon() {
 	}
 }
 
-// getLastError retrieves the last error message from Rust
 func getLastError() string {
 	cErr := C.encre_get_last_error()
 	if cErr == nil {

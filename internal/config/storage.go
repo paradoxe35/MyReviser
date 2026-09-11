@@ -12,7 +12,6 @@ import (
 	"runtime"
 )
 
-// getMachineID gets a unique machine identifier for encryption key derivation
 func getMachineID() string {
 	hostname, _ := os.Hostname()
 	username := os.Getenv("USER")
@@ -22,14 +21,12 @@ func getMachineID() string {
 	return fmt.Sprintf("%s-%s-%s", hostname, username, runtime.GOOS)
 }
 
-// deriveKey derives an encryption key from the machine ID
 func deriveKey() []byte {
 	machineID := getMachineID()
 	hash := sha256.Sum256([]byte(machineID))
 	return hash[:]
 }
 
-// EncryptAPIKey encrypts an API key for storage
 func EncryptAPIKey(apiKey string) (string, error) {
 	if apiKey == "" {
 		return "", nil
@@ -55,7 +52,6 @@ func EncryptAPIKey(apiKey string) (string, error) {
 	return base64.StdEncoding.EncodeToString(ciphertext), nil
 }
 
-// DecryptAPIKey decrypts an API key from storage
 func DecryptAPIKey(encryptedKey string) (string, error) {
 	if encryptedKey == "" {
 		return "", nil
@@ -90,7 +86,6 @@ func DecryptAPIKey(encryptedKey string) (string, error) {
 	return string(plaintext), nil
 }
 
-// SaveAPIKey saves an encrypted API key for a specific provider
 func (c *Config) SaveAPIKey(provider, apiKey string) error {
 	encrypted, err := EncryptAPIKey(apiKey)
 	if err != nil {
@@ -110,7 +105,6 @@ func (c *Config) SaveAPIKey(provider, apiKey string) error {
 	return c.Save()
 }
 
-// GetAPIKey retrieves and decrypts the API key for a specific provider
 func (c *Config) GetAPIKey(provider string) (string, error) {
 	c.mu.RLock()
 	var encrypted string
@@ -124,7 +118,6 @@ func (c *Config) GetAPIKey(provider string) (string, error) {
 	return DecryptAPIKey(encrypted)
 }
 
-// GetCurrentAPIKey retrieves the API key for the currently selected provider
 func (c *Config) GetCurrentAPIKey() (string, error) {
 	return c.GetAPIKey(c.GetCurrentProvider())
 }

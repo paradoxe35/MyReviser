@@ -91,8 +91,6 @@ mod tests {
         assert_eq!(restore_target(&saved), Some("user's own text".to_string()));
     }
 
-    /// The bug this rule exists for: borrowing the clipboard while it held an image used to
-    /// destroy the image and leave Encre's text in its place.
     #[test]
     fn an_unreadable_clipboard_is_cleared_rather_than_left_holding_our_text() {
         let saved = classify(None);

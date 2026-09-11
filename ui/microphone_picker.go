@@ -9,9 +9,7 @@ import (
 
 const systemDefaultDevice = "System default"
 
-// MicrophonePicker chooses the capture device. A device saved earlier but not
-// present now stays listed and selected, so unplugging a headset does not
-// silently reassign the setting.
+// MicrophonePicker chooses the capture device; a saved device no longer present stays listed and selected.
 type MicrophonePicker struct {
 	widget.BaseWidget
 
@@ -63,17 +61,13 @@ func (p *MicrophonePicker) Device() string {
 	return p.chosen
 }
 
-// Refresh re-reads the device list, keeping the in-progress choice if it survives,
-// falling back to the saved device, then to the system default.
+// Refresh re-reads the device list, preferring the in-progress choice, then the saved device, then the system default.
 func (p *MicrophonePicker) Refresh() {
 	p.refreshing = true
 	defer func() { p.refreshing = false }()
 
 	devices := p.list()
 
-	// The in-progress choice survives rescans; when it is gone from hardware
-	// the saved setting takes over, and a missing-but-saved device stays
-	// selected and listed rather than silently reassigning.
 	wanted := p.chosen
 	if _, ok := p.find(devices, wanted); !ok {
 		wanted = p.saved

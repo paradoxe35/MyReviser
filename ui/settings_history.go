@@ -23,8 +23,7 @@ var historyFilters = []struct {
 	{"Speech", history.KindSpeech},
 }
 
-// historyEntry wraps an entry with its rendered row lines, so the list update
-// path never re-formats.
+// historyRow caches an entry's rendered row lines so the list update path never re-formats.
 type historyRow struct {
 	entry  history.Entry
 	title  string
@@ -166,8 +165,7 @@ func historyTitle(entry history.Entry) string {
 	return fmt.Sprintf("%s · %s", label, entry.At.Format("2 Jan 15:04"))
 }
 
-// historyDetail keeps the row to one line: the result, which is what the user
-// sent to the target app. The dialog shows the full original.
+// historyDetail keeps the row to one line: the result sent to the target app. The dialog shows the full original.
 func historyDetail(entry history.Entry) string {
 	text := entry.Result
 	if text == "" {

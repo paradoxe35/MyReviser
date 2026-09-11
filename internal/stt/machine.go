@@ -9,8 +9,7 @@ import (
 	"sync"
 )
 
-// Machine is what we can cheaply learn about the computer, used to rank models
-// by whether they will actually keep up here.
+// Machine is what can cheaply be learned about the computer, used to rank models by whether they'll keep up.
 type Machine struct {
 	Cores    int
 	MemoryMB int
@@ -32,9 +31,8 @@ func Host() Machine {
 	return machine
 }
 
-// EstimatedRealtime scales the catalog's measured factor by core count. It is a
-// heuristic, not a benchmark: cores are a rough proxy for throughput and say
-// nothing about clock speed or vector width.
+// EstimatedRealtime scales the catalog's measured factor by core count. A heuristic, not a
+// benchmark: cores are a rough proxy for throughput and say nothing about clock speed or vector width.
 func (m Model) EstimatedRealtime(host Machine) float64 {
 	if m.RealtimeFactor <= 0 || host.Cores <= 0 {
 		return 0
@@ -42,8 +40,7 @@ func (m Model) EstimatedRealtime(host Machine) float64 {
 	return m.RealtimeFactor * float64(host.Cores) / referenceCores
 }
 
-// FitsMemory keeps a model well under total RAM. Loading one that barely fits
-// pushes the machine into swap, where transcription stops being usable.
+// FitsMemory keeps a model well under total RAM; one that barely fits pushes the machine into swap.
 func (m Model) FitsMemory(host Machine) bool {
 	if host.MemoryMB <= 0 {
 		return true
@@ -51,8 +48,7 @@ func (m Model) FitsMemory(host Machine) bool {
 	return m.SizeMB() < float64(host.MemoryMB)*0.4
 }
 
-// Comfortable means the model should transcribe faster than you can speak,
-// with headroom, and fit in memory.
+// Comfortable means the model transcribes faster than you can speak, with headroom, and fits in memory.
 func (m Model) Comfortable(host Machine) bool {
 	return m.FitsMemory(host) && m.EstimatedRealtime(host) >= 2
 }
@@ -62,6 +58,9 @@ type Fit int
 
 const (
 	FitComfortable Fit = iota
+	// No measured realtime factor (e.g. a user-dropped model file); ranks below known-good
+	// but "slow" would be a claim the catalog can't support.
+	FitUnknown
 	FitSlow
 	FitTooLarge
 )
@@ -70,6 +69,8 @@ func (m Model) Fit(host Machine) Fit {
 	switch {
 	case !m.FitsMemory(host):
 		return FitTooLarge
+	case m.RealtimeFactor <= 0:
+		return FitUnknown
 	case m.EstimatedRealtime(host) < 2:
 		return FitSlow
 	default:
@@ -83,6 +84,8 @@ func (f Fit) Label() string {
 		return "may not fit in memory"
 	case FitSlow:
 		return "slow on this machine"
+	case FitUnknown:
+		return "speed unknown"
 	default:
 		return ""
 	}
@@ -105,8 +108,7 @@ func totalMemoryMB() int {
 	return sysMemoryMB()
 }
 
-// RankForMachine puts what is already downloaded first, then what this machine
-// can comfortably run, then everything else by accuracy.
+// RankForMachine puts what is already downloaded first, then what this machine can comfortably run, then the rest by accuracy.
 func RankForMachine(models []Model, host Machine, downloaded func(Model) bool) {
 	sort.SliceStable(models, func(i, j int) bool {
 		a, b := models[i], models[j]

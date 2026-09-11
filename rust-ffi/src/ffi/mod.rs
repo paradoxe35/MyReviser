@@ -7,8 +7,7 @@ pub mod ffi_types;
 pub use ffi_types::*;
 use std::os::raw::c_char;
 
-/// Get the last error message
-/// Returns: C string (must be freed with encre_free_string) or NULL if no error
+/// Returns the last error as a C string (free with `encre_free_string`), or NULL if none.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn encre_get_last_error() -> *const c_char {
     match take_last_error() {
@@ -17,8 +16,7 @@ pub unsafe extern "C" fn encre_get_last_error() -> *const c_char {
     }
 }
 
-/// Free a string allocated by Rust
-/// This must be called for all strings returned by Rust functions
+/// Frees a string returned by any function in this crate.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn encre_free_string(s: *mut c_char) {
     unsafe {

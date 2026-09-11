@@ -21,23 +21,19 @@ func getAppPath() (string, error) {
 		return "", fmt.Errorf("failed to get executable path: %w", err)
 	}
 
-	// Resolve symlinks
 	executable, err = filepath.EvalSymlinks(executable)
 	if err != nil {
 		logger.Warn("Failed to resolve symlinks", "error", err)
 	}
 
-	// Check if running from .app bundle
-	// Path should be: Encre.app/Contents/MacOS/Encre
+	// Path is Encre.app/Contents/MacOS/Encre when running from a bundle.
 	if strings.Contains(executable, ".app/Contents/MacOS/") {
-		// Extract .app path
 		parts := strings.Split(executable, ".app/Contents/MacOS/")
 		if len(parts) >= 1 {
 			return parts[0] + ".app", nil
 		}
 	}
 
-	// If not in .app bundle, return executable path directly
 	return executable, nil
 }
 
@@ -48,13 +44,11 @@ func (a *autoStart) Enable() error {
 		return err
 	}
 
-	// Use osascript to add login item - appears in "Open at Login"
 	script := fmt.Sprintf(`tell application "System Events" to make new login item with properties {path:"%s", hidden:false} at end`, appPath)
 
 	cmd := exec.Command("osascript", "-e", script)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Check if already exists
 		if strings.Contains(string(output), "already exists") || strings.Contains(string(output), "duplicate") {
 			logger.Info("Login item already exists", "path", appPath)
 			return nil
@@ -73,16 +67,13 @@ func (a *autoStart) Disable() error {
 		return err
 	}
 
-	// Extract app name from path
 	appName := filepath.Base(appPath)
 
-	// Use osascript to remove login item
 	script := fmt.Sprintf(`tell application "System Events" to delete login item "%s"`, strings.TrimSuffix(appName, ".app"))
 
 	cmd := exec.Command("osascript", "-e", script)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Check if item doesn't exist
 		if strings.Contains(string(output), "doesn't understand") || strings.Contains(string(output), "not found") {
 			logger.Info("Login item not found (already removed)", "name", appName)
 			return nil
@@ -101,7 +92,6 @@ func (a *autoStart) IsEnabled() bool {
 		return false
 	}
 
-	// Use osascript to check if login item exists
 	script := `tell application "System Events" to get the name of every login item`
 
 	cmd := exec.Command("osascript", "-e", script)
@@ -110,11 +100,9 @@ func (a *autoStart) IsEnabled() bool {
 		return false
 	}
 
-	// Extract app name
 	appName := filepath.Base(appPath)
 	appName = strings.TrimSuffix(appName, ".app")
 
-	// Check if app name is in the list
 	loginItems := string(output)
 	return strings.Contains(loginItems, appName)
 }

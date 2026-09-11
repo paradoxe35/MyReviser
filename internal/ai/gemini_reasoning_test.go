@@ -51,8 +51,8 @@ func TestGeminiAsksForNoThinking(t *testing.T) {
 	}
 }
 
-// The bug this exists for: a model that cannot switch thinking off rejects a zero budget outright,
-// and the correction used to fail with it.
+// A model that cannot switch thinking off rejects a zero budget outright; the request must retry
+// without it.
 func TestGeminiRetriesWithoutTheBudgetWhenRefused(t *testing.T) {
 	clearReasoningCache()
 	server, seen := geminiServer(t, badRequest, geminiOK)
