@@ -111,12 +111,15 @@ def main():
     icons[256].save(os.path.join(assets, "icon.png"))
     icons[1024].save(os.path.join(build, "appicon.png"))
 
-    # Pillow only reuses a frame when an image of that exact size is supplied;
-    # otherwise it thumbnails the 256 down. Hand it our own render per size so
-    # the 16 and 24 px frames Windows actually shows are drawn, not shrunk.
+    # Two things Windows is fussy about. Pillow only reuses a frame when an image
+    # of that exact size is supplied, so hand it our own render per size and the
+    # 16 and 24 px frames are drawn rather than shrunk from the 256. And the
+    # shell only decodes PNG-compressed entries at 256; below that it wants
+    # BMP/DIB, and a frame it cannot read falls back to a cached icon.
     icons[256].save(
         os.path.join(assets, "icon.ico"),
         format="ICO",
+        bitmap_format="bmp",
         sizes=[(s, s) for s in ICO_SIZES],
         append_images=[icons[s] for s in ICO_SIZES if s != 256],
     )
