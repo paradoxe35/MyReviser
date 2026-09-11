@@ -41,6 +41,10 @@ fyne_metadata_init.go
 .encre/
 *.log
 
+# Python bytecode from the asset scripts
+__pycache__/
+*.pyc
+
 # Editors
 .vscode/
 .idea/
