@@ -31,11 +31,17 @@ func TestDefaultHotkeysAreUnique(t *testing.T) {
 	}
 }
 
-func TestEveryActionIsEnabledByDefault(t *testing.T) {
+func TestOnlyReviseIsEnabledByDefault(t *testing.T) {
+	want := map[ActionKind]bool{
+		ActionReviseSelection: true,
+		ActionReviseAll:       true,
+		ActionTranslate:       false,
+		ActionDictate:         false,
+	}
+
 	for kind, action := range DefaultActions() {
-		if !action.Enabled {
-			t.Errorf("%s is disabled by default; an unexplained empty checkbox is\n"+
-				"worse than a shortcut that reports what is missing", kind)
+		if action.Enabled != want[kind] {
+			t.Errorf("%s enabled = %v, want %v", kind, action.Enabled, want[kind])
 		}
 	}
 }

@@ -253,7 +253,7 @@ jobs:
           Architecture: ${{ matrix.arch }}
           Maintainer: Paradoxe Ng <contact@pngwasi.me>
           Homepage: https://github.com/paradoxe35/encre
-          Depends: libc6, libgl1, libx11-6, libxext6, libxcb1, libxinerama1, libxtst6, libxdo3, libxkbcommon0, libxi6, libxcursor1, libxrandr2, libxrender1, libxfixes3, libxxf86vm1
+          Depends: libc6, libgl1, libx11-6, libxext6, libxcb1, libxinerama1, libxtst6, libxdo3, libxkbcommon0, libxi6, libxcursor1, libxrandr2, libxrender1, libxfixes3, libxxf86vm1, libasound2 | libasound2t64
           Description: AI-powered text revision tool with Rust FFI
            Encre is a system tray application that provides global hotkeys
            for instant text enhancement using AI providers (OpenAI, Claude, Gemini).
@@ -819,6 +819,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -911,7 +912,7 @@ jobs:
             - X11 users: No special setup needed, hotkeys work out of the box
             - Required packages (Debian/Ubuntu):
               ```bash
-              sudo apt install libgl1 libx11-6 libxext6 libxcb1 libxinerama1 libxtst6 libxdo3 libxkbcommon0 libxi6 libxcursor1 libxrandr2 libxrender1 libxfixes3 libxxf86vm1
+              sudo apt install libgl1 libx11-6 libxext6 libxcb1 libxinerama1 libxtst6 libxdo3 libxkbcommon0 libxi6 libxcursor1 libxrandr2 libxrender1 libxfixes3 libxxf86vm1 libasound2
               ```
             - Note: The .deb package installs required packages automatically
 
@@ -920,3 +921,12 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: false
+
+      # The release owns the files now, so the per-run copies are duplicates
+      # against the storage quota. Runs only after the upload succeeded, so a
+      # failed publish keeps them for debugging.
+      - name: Delete build artifacts
+        uses: geekyeggo/delete-artifact@v6
+        with:
+          name: encre-*
+          failOnError: false

@@ -154,13 +154,19 @@ func defaultHotkeys() map[ActionKind]string {
 	}
 }
 
+// Translate and dictate start off: translate needs a language pair and dictate
+// needs a downloaded model, so neither should claim a shortcut unasked.
+func enabledByDefault(kind ActionKind) bool {
+	return kind == ActionReviseSelection || kind == ActionReviseAll
+}
+
 func DefaultActions() map[ActionKind]ActionConfig {
 	hotkeys := defaultHotkeys()
 	actions := make(map[ActionKind]ActionConfig, len(ActionOrder))
 
 	for _, kind := range ActionOrder {
 		actions[kind] = ActionConfig{
-			Enabled:    true,
+			Enabled:    enabledByDefault(kind),
 			Hotkey:     hotkeys[kind],
 			PushToTalk: kind == ActionDictate,
 		}
