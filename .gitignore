@@ -36,6 +36,8 @@ tmp/
 # Fyne generated sources
 bundled.go
 fyne_metadata_init.go
+# Windows resource file fyne package writes; a stale one embeds an old icon
+*.syso
 
 # Runtime state written when testing locally
 .encre/

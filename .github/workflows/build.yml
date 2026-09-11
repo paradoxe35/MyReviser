@@ -398,6 +398,11 @@ jobs:
 
           Write-Host "Building version: $VERSION (build: $BUILD_NUMBER)"
 
+          # go build links any .syso in the package dir, so one left from an
+          # earlier run silently wins over --icon and embeds a stale icon.
+          Remove-Item -Force *.syso, FyneApp.ico -ErrorAction SilentlyContinue
+          Write-Host "Icon going in: $((Get-FileHash assets\icon.ico -Algorithm SHA256).Hash)"
+
           # Use fyne package with version info
           fyne package --icon assets/icon.ico --name Encre --release `
             --app-version "$VERSION" `
