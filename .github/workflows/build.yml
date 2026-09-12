@@ -15,9 +15,8 @@ on:
 env:
   GO_VERSION: "1.24"
   RUST_VERSION: "stable"
-  # Left to itself ggml compiles -march=native on the native jobs and no SIMD at
-  # all on the cross ones. Pin an AVX2 baseline (x86 from ~2013) for every
-  # artifact; inert on arm64.
+  # ggml defaults to -march=native on the native jobs and no SIMD on the cross
+  # ones. Pin an AVX2 baseline (x86 from ~2013); inert on arm64.
   TRANSCRIBE_CMAKE_ARGS: >-
     -DGGML_NATIVE=OFF
     -DGGML_SSE42=ON
@@ -119,7 +118,7 @@ jobs:
           GOOS: linux
           GOARCH: ${{ matrix.arch }}
         run: |
-          # Extract version from tag or use 0.0.0 for manual dispatch (fyne requires x.y.z format)
+          # fyne wants x.y.z, so a manual run builds 0.0.0.
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
           else
@@ -129,13 +128,12 @@ jobs:
 
           echo "Building version: ${VERSION} (build: ${BUILD_NUMBER})"
 
-          # Use fyne package with version info (creates Encre.tar.xz for Linux)
+          # Produces Encre.tar.xz.
           fyne package --icon assets/icon.png --name Encre --release \
             --app-version "${VERSION}" \
             --app-build "${BUILD_NUMBER}"
 
-          # The CLI wraps the tree in a directory named after the binary, which older versions did
-          # not, so the binary is located by its path inside the archive rather than at a fixed one.
+          # The CLI wraps the tree in a directory named after the binary, so find it by path.
           mkdir -p pkg
           tar -xf Encre.tar.xz -C pkg
 
@@ -164,27 +162,22 @@ jobs:
       - name: Create AppImage
         if: matrix.arch == 'amd64'
         run: |
-          # Download linuxdeploy
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
 
-          # Create AppDir structure with proper hierarchy
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
 
-          # Copy binary
           cp encre-linux-${{ matrix.arch }} AppDir/usr/bin/encre
           chmod +x AppDir/usr/bin/encre
 
-          # Copy icon to proper location
           if [ -f assets/icon.png ]; then
             cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/encre.png
-            # Also copy to root for compatibility
+            # linuxdeploy also looks in the AppDir root
             cp assets/icon.png AppDir/encre.png
           fi
 
-          # Create desktop entry in proper location
           cat > AppDir/usr/share/applications/encre.desktop <<'EOF'
           [Desktop Entry]
           Name=Encre
@@ -200,13 +193,12 @@ jobs:
           StartupWMClass=Encre Settings
           EOF
 
-          # Also copy desktop file to root (required by linuxdeploy)
+          # linuxdeploy needs it in the root too
           cp AppDir/usr/share/applications/encre.desktop AppDir/encre.desktop
 
-          # Create AppImage with proper desktop integration
           ARCH=x86_64 ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
 
-          # Find and rename the generated AppImage (exclude linuxdeploy itself)
+          # Exclude linuxdeploy's own AppImage.
           APPIMAGE_FILE=$(find . -maxdepth 1 -name "*.AppImage" -type f ! -name "linuxdeploy-*" | head -n 1)
           if [ -n "$APPIMAGE_FILE" ]; then
             echo "Found AppImage: $APPIMAGE_FILE"
@@ -226,25 +218,20 @@ jobs:
           mkdir -p dist/deb/usr/share/applications
           mkdir -p dist/deb/usr/share/icons/hicolor/256x256/apps
 
-          # Copy binary
           cp encre-linux-${{ matrix.arch }} dist/deb/usr/local/bin/encre
           chmod +x dist/deb/usr/local/bin/encre
 
-          # Sanitize version for Debian (must start with digit)
+          # A Debian version must start with a digit.
           RAW_VERSION="${GITHUB_REF_NAME#v}"
-          # If version doesn't start with digit, use 0.0.0 prefix
           if ! echo "$RAW_VERSION" | grep -q '^[0-9]'; then
             DEB_VERSION="0.0.0-${RAW_VERSION}"
           else
             DEB_VERSION="$RAW_VERSION"
           fi
-          # Replace invalid chars with dash
           DEB_VERSION=$(echo "$DEB_VERSION" | sed 's/[^0-9a-zA-Z.]/-/g' | sed 's/^-//' | sed 's/-$//')
-          # Fallback if empty
           [ -z "$DEB_VERSION" ] && DEB_VERSION="0.0.0-dev"
           echo "Debian version: $DEB_VERSION"
 
-          # Create control file
           cat > dist/deb/DEBIAN/control <<EOF
           Package: encre
           Version: $DEB_VERSION
@@ -270,17 +257,15 @@ jobs:
            License: MIT
           EOF
 
-          # Copy icon if exists
           if [ -f assets/icon.png ]; then
             mkdir -p dist/deb/usr/share/icons/hicolor/256x256/apps
             cp assets/icon.png dist/deb/usr/share/icons/hicolor/256x256/apps/encre.png
 
-            # Also copy to pixmaps as fallback
+            # pixmaps as a fallback
             mkdir -p dist/deb/usr/share/pixmaps
             cp assets/icon.png dist/deb/usr/share/pixmaps/encre.png
           fi
 
-          # Create desktop entry
           cat > dist/deb/usr/share/applications/encre.desktop <<EOF
           [Desktop Entry]
           Name=Encre
@@ -296,7 +281,6 @@ jobs:
           StartupWMClass=Encre Settings
           EOF
 
-          # Build deb package
           dpkg-deb --build dist/deb encre-linux-${{ matrix.arch }}.deb
 
       - name: Upload portable artifact
@@ -388,7 +372,7 @@ jobs:
           GOOS: windows
           GOARCH: ${{ matrix.arch }}
         run: |
-          # Extract version from tag or use 0.0.0 for manual dispatch (fyne requires x.y.z format)
+          # fyne wants x.y.z, so a manual run builds 0.0.0.
           if ("${{ github.ref }}" -like "refs/tags/*") {
             $VERSION = "${{ github.ref_name }}" -replace '^v',''
           } else {
@@ -398,20 +382,34 @@ jobs:
 
           Write-Host "Building version: $VERSION (build: $BUILD_NUMBER)"
 
-          # go build links any .syso in the package dir, so one left from an
-          # earlier run silently wins over --icon and embeds a stale icon.
+          # go build links any stale .syso over --icon.
           Remove-Item -Force *.syso, FyneApp.ico -ErrorAction SilentlyContinue
           Write-Host "Icon going in: $((Get-FileHash assets\icon.png -Algorithm SHA256).Hash)"
 
-          # Use fyne package with version info
           fyne package --icon assets/icon.png --name Encre --release `
             --app-version "$VERSION" `
             --app-build "$BUILD_NUMBER"
 
-          # fyne package creates Encre.exe, rename it
           if (Test-Path "Encre.exe") {
             Move-Item Encre.exe encre-windows-${{ matrix.arch }}.exe
           }
+
+          # fyne embeds one 256 px frame and the shell draws nothing at 16 px,
+          # so swap in the full set. Manifest and version info survive.
+          go install github.com/tc-hib/go-winres@v0.3.3
+          go-winres patch --in winres.json --no-backup encre-windows-${{ matrix.arch }}.exe
+
+          # Prove it landed rather than trusting which id fyne used.
+          go-winres extract --dir icon-check encre-windows-${{ matrix.arch }}.exe
+          Get-ChildItem icon-check\*.ico | ForEach-Object {
+            $frames = [BitConverter]::ToUInt16([IO.File]::ReadAllBytes($_.FullName), 4)
+            Write-Host "$($_.Name): $frames frames"
+            if ($frames -lt 7) {
+              Write-Error "$($_.Name) has $frames frames; the icon patch did not apply"
+              exit 1
+            }
+          }
+          Remove-Item -Recurse -Force icon-check
 
       - name: Create portable ZIP
         shell: pwsh
@@ -430,7 +428,6 @@ jobs:
           choco install nsis -y
           $env:Path += ";C:\Program Files (x86)\NSIS"
 
-          # Verify required files exist
           if (-not (Test-Path "encre-windows-${{ matrix.arch }}.exe")) {
             Write-Error "Source executable not found: encre-windows-${{ matrix.arch }}.exe"
             exit 1
@@ -442,7 +439,6 @@ jobs:
           $version = "${{ github.ref_name }}" -replace '^v','' -replace '[^0-9a-zA-Z.]','-'
           if ([string]::IsNullOrEmpty($version)) { $version = "0.0.0-dev" }
 
-          # Create NSIS installer script
           @"
           Unicode true
           !include "MUI2.nsh"
@@ -646,7 +642,7 @@ jobs:
           GOOS: darwin
           GOARCH: ${{ matrix.arch }}
         run: |
-          # Extract version from tag or use 0.0.0 for manual dispatch (fyne requires x.y.z format)
+          # fyne wants x.y.z, so a manual run builds 0.0.0.
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
           else
@@ -656,7 +652,6 @@ jobs:
 
           echo "Building version: ${VERSION} (build: ${BUILD_NUMBER})"
 
-          # Use fyne package with version info
           fyne package --icon assets/icon_1024.png --name Encre --app-id me.pngwasi.encre --release \
             --app-version "${VERSION}" \
             --app-build "${BUILD_NUMBER}"
@@ -672,7 +667,6 @@ jobs:
 
       - name: Verify Info.plist
         run: |
-          # Verify Info.plist exists and is valid
           echo "Info.plist contents:"
           /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" Encre.app/Contents/Info.plist
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" Encre.app/Contents/Info.plist
@@ -681,24 +675,20 @@ jobs:
         run: |
           echo "Ad-hoc signing Encre.app (without hardened runtime/entitlements)..."
 
-          # Determine actual executable name from Info.plist
           EXEC=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" Encre.app/Contents/Info.plist)
           echo "CFBundleExecutable=$EXEC"
 
-          # Sign from inside-out (Apple best practice):
-          # 1. Sign any nested frameworks first (if they exist)
+          # Inside-out, as Apple wants: frameworks, executable, then the bundle.
           echo "Signing frameworks (if any)..."
           find Encre.app/Contents/Frameworks -name "*.framework" -exec codesign --force --sign - {} \; 2>/dev/null || true
 
-          # 2. Sign the main executable
           echo "Signing executable: ${EXEC}"
           codesign --force --sign - "Encre.app/Contents/MacOS/${EXEC}"
 
-          # 3. Sign the entire app bundle (without --deep since contents already signed)
+          # No --deep: the contents are signed already.
           echo "Signing app bundle..."
           codesign --force --sign - Encre.app
 
-          # Verify the signature
           echo "Verifying signature..."
           codesign --verify --verbose=4 Encre.app
 
@@ -706,7 +696,7 @@ jobs:
 
       - name: Remove quarantine attributes
         run: |
-          # Remove quarantine attribute to prevent "damaged" error
+          # Without this the first launch reports a damaged app.
           xattr -cr Encre.app || true
 
       - name: Create installation README
@@ -749,15 +739,14 @@ jobs:
 
       - name: Create ZIP archive
         run: |
-          # Create zip without extended attributes to avoid Gatekeeper issues
+          # -X drops extended attributes, which Gatekeeper trips over.
           zip -r -X encre-darwin-${{ matrix.arch }}.zip Encre.app INSTALL_MACOS.txt
 
       - name: Create DMG
         run: |
-          # Install create-dmg
           brew install create-dmg || true
 
-          # Create DMG - allow failure if create-dmg has issues
+          # The ZIP is the fallback if create-dmg fails.
           if create-dmg \
             --volname "Encre" \
             --window-pos 200 120 \
@@ -808,10 +797,8 @@ jobs:
         run: |
           mkdir -p release
 
-          # Move all artifacts to release folder
           find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.deb" -o -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" \) -exec cp {} release/ \;
 
-          # Create checksums
           cd release
           sha256sum * > checksums.txt
 
@@ -844,8 +831,7 @@ jobs:
           prerelease: false
           generate_release_notes: true
 
-      # The release owns the files now, so the per-run copies are duplicates
-      # against the storage quota. Runs only after the upload succeeded, so a
+      # The release owns the files now. Only runs on a successful upload, so a
       # failed publish keeps them for debugging.
       - name: Delete build artifacts
         uses: geekyeggo/delete-artifact@v6
