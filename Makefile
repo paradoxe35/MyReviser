@@ -354,7 +354,7 @@ package-all: clean
 	CGO_ENABLED=1 \
 		GOOS=darwin \
 		GOARCH=amd64 \
-		fyne package --icon assets/icon.png --name Encre --app-id me.pngwasi.encre --release \
+		fyne package --icon assets/icon_1024.png --name Encre --app-id me.pngwasi.encre --release \
 			--app-version "$(VERSION)" \
 			--app-build "$(BUILD_NUMBER)"
 	mv Encre.app $(BIN_DIR)/Encre-darwin-amd64.app
@@ -365,7 +365,7 @@ package-all: clean
 	CGO_ENABLED=1 \
 		GOOS=darwin \
 		GOARCH=arm64 \
-		fyne package --icon assets/icon.png --name Encre --app-id me.pngwasi.encre --release \
+		fyne package --icon assets/icon_1024.png --name Encre --app-id me.pngwasi.encre --release \
 			--app-version "$(VERSION)" \
 			--app-build "$(BUILD_NUMBER)"
 	mv Encre.app $(BIN_DIR)/Encre-darwin-arm64.app

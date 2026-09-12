@@ -657,7 +657,7 @@ jobs:
           echo "Building version: ${VERSION} (build: ${BUILD_NUMBER})"
 
           # Use fyne package with version info
-          fyne package --icon assets/icon.png --name Encre --app-id me.pngwasi.encre --release \
+          fyne package --icon assets/icon_1024.png --name Encre --app-id me.pngwasi.encre --release \
             --app-version "${VERSION}" \
             --app-build "${BUILD_NUMBER}"
 

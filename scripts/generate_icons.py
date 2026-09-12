@@ -10,15 +10,15 @@ VIEW = 100  # artwork viewport, scaled to the render size
 
 BODY = (59, 130, 246)
 HIGHLIGHT = (147, 197, 253)
-TRAY_INK = (255, 255, 255)
 
 # Clear of the canvas edge so the drop is not clipped by a rounded frame.
 MARGIN = 0.04
 
-APP_SIZES = [16, 20, 22, 24, 32, 36, 40, 48, 64, 72, 96, 128, 192, 256, 512, 1024]
+# Three files are consumed by anything: icon.png (Fyne metadata, the Linux
+# packages, the window and tray icon), icon_1024.png (the macOS bundle, which
+# wants a retina source) and icon.ico (Windows). The per-size renders behind
+# the .ico are built in memory and never written.
 ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
-TRAY_SIZES = [16, 32, 48]
-TRAY_MARGIN = 0.06
 
 DROP = (
     (50, 5),
@@ -92,24 +92,15 @@ def app_icon(size):
     return fitted(artwork(work, BODY, HIGHLIGHT), work, MARGIN).resize((size, size), Image.LANCZOS)
 
 
-def tray_icon(size):
-    work = size * SUPERSAMPLE
-    return fitted(artwork(work, TRAY_INK, None), work, TRAY_MARGIN).resize((size, size), Image.LANCZOS)
-
-
 def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     assets = os.path.join(root, "assets")
-    build = os.path.join(root, "build")
     os.makedirs(assets, exist_ok=True)
-    os.makedirs(build, exist_ok=True)
 
-    icons = {size: app_icon(size) for size in APP_SIZES}
-    for size, icon in icons.items():
-        icon.save(os.path.join(assets, f"icon_{size}.png"))
+    icons = {size: app_icon(size) for size in ICO_SIZES}
 
     icons[256].save(os.path.join(assets, "icon.png"))
-    icons[1024].save(os.path.join(build, "appicon.png"))
+    app_icon(1024).save(os.path.join(assets, "icon_1024.png"))
 
     # Two things Windows is fussy about. Pillow only reuses a frame when an image
     # of that exact size is supplied, so hand it our own render per size and the
@@ -124,12 +115,9 @@ def main():
         append_images=[icons[s] for s in ICO_SIZES if s != 256],
     )
 
-    for size in TRAY_SIZES:
-        tray_icon(size).save(os.path.join(assets, f"icon-{size}x{size}.png"))
-
-    print(f"app icons   {APP_SIZES}")
-    print(f"windows ico {ICO_SIZES}")
-    print(f"tray icons  {TRAY_SIZES} (monochrome)")
+    print("icon.png       256 px, app and Linux packages")
+    print("icon_1024.png  1024 px, macOS bundle")
+    print(f"icon.ico       {ICO_SIZES}, BMP frames, Windows")
 
 
 if __name__ == "__main__":
