@@ -394,23 +394,6 @@ jobs:
             Move-Item Encre.exe encre-windows-${{ matrix.arch }}.exe
           }
 
-          # fyne embeds one 256 px frame and the shell draws nothing at 16 px,
-          # so swap in the full set. Manifest and version info survive.
-          go install github.com/tc-hib/go-winres@v0.3.3
-          go-winres patch --in winres.json --no-backup encre-windows-${{ matrix.arch }}.exe
-
-          # Prove it landed rather than trusting which id fyne used.
-          go-winres extract --dir icon-check encre-windows-${{ matrix.arch }}.exe
-          Get-ChildItem icon-check\*.ico | ForEach-Object {
-            $frames = [BitConverter]::ToUInt16([IO.File]::ReadAllBytes($_.FullName), 4)
-            Write-Host "$($_.Name): $frames frames"
-            if ($frames -lt 7) {
-              Write-Error "$($_.Name) has $frames frames; the icon patch did not apply"
-              exit 1
-            }
-          }
-          Remove-Item -Recurse -Force icon-check
-
       - name: Create portable ZIP
         shell: pwsh
         run: |
